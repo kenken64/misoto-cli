@@ -1,0 +1,44 @@
+{
+  "client": {
+    "name": "misoto-cli",
+    "version": "1.0.0",
+    "connectTimeout": 30,
+    "readTimeout": 60,
+    "writeTimeout": 30
+  },
+  "servers": {
+    "default": {
+      "url": "http://localhost:8080",
+      "name": "Local MCP Server",
+      "description": "Local development MCP server",
+      "enabled": true,
+      "priority": 0,
+      "headers": {},
+      "auth": {
+        "type": "none"
+      }
+    },
+    "remote": {
+      "url": "http://localhost:8081",
+      "name": "Remote MCP Server",
+      "description": "Remote production MCP server",
+      "enabled": false,
+      "priority": 1,
+      "headers": {},
+      "auth": {
+        "type": "none"
+      }
+    },
+    "tools": {
+      "url": "http://localhost:8082",
+      "name": "Tools MCP Server",
+      "description": "Specialized tools MCP server",
+      "enabled": false,
+      "priority": 2,
+      "headers": {},
+      "auth": {
+        "type": "none"
+      }
+    }
+  }
+}
