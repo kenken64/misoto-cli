@@ -1,6 +1,7 @@
 package sg.edu.nus.iss.misoto.cli.auth;
 
 import org.springframework.stereotype.Service;
+import sg.edu.nus.iss.misoto.cli.config.DotenvLoader;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -21,8 +22,7 @@ public class AuthManager {
     
     private String authToken;
     private boolean initialized = false;
-    
-    /**
+      /**
      * Initialize the authentication manager
      */
     public void initialize() throws IOException {
@@ -30,33 +30,66 @@ public class AuthManager {
             return;
         }
         
+        // Ensure dotenv is loaded
+        DotenvLoader.initialize();
+        
         // Try to load existing token
         loadToken();
         initialized = true;
         
         log.debug("AuthManager initialized, authenticated: {}", isAuthenticated());
     }
-    
-    /**
+      /**
      * Check if user is authenticated
+     * User is considered authenticated if:
+     * 1. They have a stored auth token, OR
+     * 2. They have a valid ANTHROPIC_API_KEY environment variable
      */
     public boolean isAuthenticated() {
-        return authToken != null && !authToken.trim().isEmpty();
+        // Check stored token first
+        if (authToken != null && !authToken.trim().isEmpty()) {
+            log.debug("User authenticated via stored token");
+            return true;
+        }
+        
+        // Check environment variable as fallback
+        String apiKey = DotenvLoader.getEnv("ANTHROPIC_API_KEY");
+        if (apiKey != null && !apiKey.trim().isEmpty()) {
+            log.debug("User authenticated via ANTHROPIC_API_KEY environment variable");
+            return true;
+        }
+        
+        log.debug("User not authenticated - no stored token or API key found");
+        return false;
     }
-    
-    /**
+      /**
      * Get the current authentication token
+     * Returns stored token if available, otherwise returns API key from environment
      */
     public Optional<String> getToken() {
-        return Optional.ofNullable(authToken);
+        // Return stored token if available
+        if (authToken != null && !authToken.trim().isEmpty()) {
+            return Optional.of(authToken);
+        }
+        
+        // Fallback to environment variable
+        String apiKey = DotenvLoader.getEnv("ANTHROPIC_API_KEY");
+        if (apiKey != null && !apiKey.trim().isEmpty()) {
+            return Optional.of(apiKey);
+        }
+        
+        return Optional.empty();
     }
-    
-    /**
+      /**
      * Set the authentication token
      */
     public void setToken(String token) throws IOException {
         this.authToken = token;
-        saveToken(token);
+        if (token != null) {
+            saveToken(token);
+        } else {
+            clearToken();
+        }
         log.debug("Authentication token updated");
     }
     
@@ -123,8 +156,7 @@ public class AuthManager {
     private Path getTokenPath() {
         return getConfigDir().resolve(TOKEN_FILE);
     }
-    
-    /**
+      /**
      * Get the current user (simplified - in a real implementation this might decode from JWT)
      */
     public Optional<String> getCurrentUser() {
@@ -134,6 +166,6 @@ public class AuthManager {
         
         // For now, return a generic user identifier
         // In a real implementation, you might decode this from the JWT token
-        return Optional.of("claude-user");
+        return Optional.of("authenticated_user");
     }
 }

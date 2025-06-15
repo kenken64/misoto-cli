@@ -162,7 +162,7 @@ Configure the application through `application.properties`:
 
 ```properties
 # Claude AI Configuration
-spring.ai.anthropic.api-key=${ANTHROPIC_API_KEY:}
+spring.ai.anthropic.api-key=${ANTHROPIC_API_KEY}
 spring.ai.anthropic.chat.model=claude-3-sonnet-20240229
 spring.ai.anthropic.chat.temperature=0.7
 spring.ai.anthropic.chat.max-tokens=4000

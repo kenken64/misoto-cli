@@ -71,11 +71,14 @@ public class AsyncUtil {
             return future;
         }
     }
-    
-    /**
+      /**
      * Sleep for the specified number of milliseconds
      */
     public static CompletableFuture<Void> delay(long ms) {
+        if (ms <= 0) {
+            return CompletableFuture.completedFuture(null);
+        }
+        
         CompletableFuture<Void> future = new CompletableFuture<>();
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
         

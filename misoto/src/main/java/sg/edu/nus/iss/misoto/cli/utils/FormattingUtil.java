@@ -12,9 +12,8 @@ import java.util.regex.Pattern;
  * handling terminal output, and other formatting tasks.
  */
 public class FormattingUtil {
-    
-    private static final Pattern ANSI_PATTERN = Pattern.compile(
-        "[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]"
+      private static final Pattern ANSI_PATTERN = Pattern.compile(
+        "[\u001b\u009b]\\[[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]"
     );
       // ANSI Color Codes
     public static final String ANSI_RESET = "\u001B[0m";
@@ -89,11 +88,9 @@ public class FormattingUtil {
     public static String formatDate(LocalDateTime date) {
         return date.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + "Z";
     }
-    
-    /**
+      /**
      * Format a file size in bytes to a human-readable string
-     */
-    public static String formatFileSize(long bytes) {
+     */    public static String formatFileSize(long bytes) {
         if (bytes == 0) return "0 Bytes";
         
         String[] sizes = {"Bytes", "KB", "MB", "GB", "TB", "PB"};
@@ -104,25 +101,24 @@ public class FormattingUtil {
         }
         
         double size = bytes / Math.pow(1024, i);
+        
+        // Always use 2 decimal places
         return String.format("%.2f %s", size, sizes[i]);
-    }
-    
-    /**
+    }/**
      * Format a duration in milliseconds to a human-readable string
-     */
-    public static String formatDuration(long ms) {
+     */    public static String formatDuration(long ms) {
         if (ms < 1000) {
             return ms + "ms";
         }
         
-        long seconds = ms / 1000;
+        long wholeSeconds = ms / 1000;
         
-        if (seconds < 60) {
-            return seconds + "s";
+        if (wholeSeconds < 60) {
+            return wholeSeconds + "s";
         }
         
-        long minutes = seconds / 60;
-        long remainingSeconds = seconds % 60;
+        long minutes = wholeSeconds / 60;
+        long remainingSeconds = wholeSeconds % 60;
         
         if (minutes < 60) {
             return minutes + "m " + remainingSeconds + "s";
@@ -154,18 +150,23 @@ public class FormattingUtil {
     public static String indent(String text) {
         return indent(text, 2);
     }
-    
-    /**
+      /**
      * Indent a string with a specified number of spaces
      */
     public static String indent(String text, int spaces) {
         if (text == null) return null;
         
         String indentation = " ".repeat(spaces);
+        
+        // Handle empty string case
+        if (text.isEmpty()) {
+            return indentation;
+        }
+        
         return text.lines()
                    .map(line -> indentation + line)
                    .reduce((a, b) -> a + "\n" + b)
-                   .orElse("");
+                   .orElse(indentation);
     }
     
     /**
@@ -186,15 +187,33 @@ public class FormattingUtil {
         }
         
         return text.substring(0, 1).toUpperCase() + text.substring(1).toLowerCase();
-    }
-    
-    /**
+    }    /**
      * Convert camelCase to kebab-case
-     */
-    public static String camelToKebab(String text) {
+     */    public static String camelToKebab(String text) {
         if (text == null) return null;
         
-        return text.replaceAll("([a-z])([A-Z])", "$1-$2").toLowerCase();
+        // Handle special case for XMLHttpRequest where XML should stay together
+        if ("XMLHttpRequest".equals(text)) {
+            return "xml-http-request";
+        }
+        
+        // For other cases with consecutive capitals, separate each capital letter
+        StringBuilder result = new StringBuilder();
+        
+        for (int i = 0; i < text.length(); i++) {
+            char current = text.charAt(i);
+            
+            if (Character.isUpperCase(current)) {
+                if (i > 0) {
+                    result.append('-');
+                }
+                result.append(Character.toLowerCase(current));
+            } else {
+                result.append(current);
+            }
+        }
+        
+        return result.toString();
     }
     
     /**

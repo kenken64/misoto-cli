@@ -18,17 +18,15 @@ import java.util.regex.Pattern;
  * and ensuring data conforms to expected formats.
  */
 public class ValidationUtil {
-    
-    private static final Pattern EMAIL_PATTERN = Pattern.compile(
-        "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+      private static final Pattern EMAIL_PATTERN = Pattern.compile(
+        "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*\\.[a-zA-Z]{2,}$"
     );
     
     private static final Pattern UUID_PATTERN = Pattern.compile(
         "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
     );
-    
-    private static final Pattern IPV4_PATTERN = Pattern.compile(
-        "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+      private static final Pattern IPV4_PATTERN = Pattern.compile(
+        "^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$"
     );
     
     /**
@@ -129,15 +127,27 @@ public class ValidationUtil {
         if (value == null) return false;
         return EMAIL_PATTERN.matcher(value).matches();
     }
-    
-    /**
+      /**
      * Check if a string is a valid URL
      */
     public static boolean isUrl(String value) {
-        if (value == null) return false;
+        if (value == null || value.trim().isEmpty()) return false;
+        
+        // Check for spaces which are not allowed in URLs
+        if (value.contains(" ")) return false;
+        
+        // Must have a protocol
+        if (!value.contains("://")) return false;
+        
+        // Protocol must not be empty
+        if (value.startsWith("://")) return false;
         
         try {
-            new URL(value);
+            URL url = new URL(value);
+            // Additional validation - must have a host
+            if (url.getHost() == null || url.getHost().isEmpty()) {
+                return false;
+            }
             return true;
         } catch (MalformedURLException e) {
             return false;
@@ -236,12 +246,11 @@ public class ValidationUtil {
     public static boolean hasMinLength(String value, int minLength) {
         return value != null && value.length() >= minLength;
     }
-    
-    /**
+      /**
      * Check if a string has a maximum length
      */
     public static boolean hasMaxLength(String value, int maxLength) {
-        return value == null || value.length() <= maxLength;
+        return value != null && value.length() <= maxLength;
     }
     
     /**
@@ -257,12 +266,11 @@ public class ValidationUtil {
     public static boolean hasMinSize(Collection<?> collection, int minSize) {
         return collection != null && collection.size() >= minSize;
     }
-    
-    /**
+      /**
      * Check if a collection has a maximum size
      */
     public static boolean hasMaxSize(Collection<?> collection, int maxSize) {
-        return collection == null || collection.size() <= maxSize;
+        return collection != null && collection.size() <= maxSize;
     }
     
     /**

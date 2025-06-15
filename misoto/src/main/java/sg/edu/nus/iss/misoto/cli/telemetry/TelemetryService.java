@@ -54,8 +54,7 @@ public class TelemetryService {
     
     /**
      * Record a telemetry event
-     */
-    public void recordEvent(TelemetryEventType type, Map<String, Object> data) {
+     */    public void recordEvent(TelemetryEventType type, Map<String, Object> data) {
         if (!enabled.get()) {
             return;
         }
@@ -65,7 +64,10 @@ public class TelemetryService {
             event.setType(type);
             event.setTimestamp(Instant.now());
             event.setSessionId(sessionId);
-            event.setData(new HashMap<>(data));
+            
+            // Handle null data parameter
+            Map<String, Object> eventData = data != null ? new HashMap<>(data) : new HashMap<>();
+            event.setData(eventData);
             
             // Add session context
             event.getData().putAll(sessionContext);
@@ -77,7 +79,7 @@ public class TelemetryService {
                 processQueue();
             }
             
-            log.debug("Recorded telemetry event: {} with {} data points", type, data.size());
+            log.debug("Recorded telemetry event: {} with {} data points", type, eventData.size());
         } catch (Exception e) {
             log.warn("Failed to record telemetry event", e);
         }
@@ -103,16 +105,18 @@ public class TelemetryService {
             "duration", durationMs
         ));
     }
-    
-    /**
+      /**
      * Record command error
      */
     public void recordCommandError(String command, String errorType, String errorMessage) {
-        recordEvent(TelemetryEventType.COMMAND_ERROR, Map.of(
-            "command", command,
-            "errorType", errorType,
-            "errorMessage", sanitizeErrorMessage(errorMessage)
-        ));
+        Map<String, Object> params = new HashMap<>();
+        params.put("command", command);
+        params.put("errorType", errorType);
+        String sanitizedMessage = sanitizeErrorMessage(errorMessage);
+        if (sanitizedMessage != null) {
+            params.put("errorMessage", sanitizedMessage);
+        }
+        recordEvent(TelemetryEventType.COMMAND_ERROR, params);
     }
     
     /**
@@ -193,16 +197,21 @@ public class TelemetryService {
             "newValue", sanitizeValue(newValue)
         ));
     }
-    
-    /**
+      /**
      * Record error occurrence
      */
     public void recordError(String errorType, String errorMessage, String stackTrace) {
-        recordEvent(TelemetryEventType.ERROR_OCCURRED, Map.of(
-            "errorType", errorType,
-            "errorMessage", sanitizeErrorMessage(errorMessage),
-            "stackTrace", sanitizeStackTrace(stackTrace)
-        ));
+        Map<String, Object> params = new HashMap<>();
+        params.put("errorType", errorType);
+        String sanitizedMessage = sanitizeErrorMessage(errorMessage);
+        if (sanitizedMessage != null) {
+            params.put("errorMessage", sanitizedMessage);
+        }
+        String sanitizedStackTrace = sanitizeStackTrace(stackTrace);
+        if (sanitizedStackTrace != null) {
+            params.put("stackTrace", sanitizedStackTrace);
+        }
+        recordEvent(TelemetryEventType.ERROR_OCCURRED, params);
     }
     
     /**
@@ -215,14 +224,15 @@ public class TelemetryService {
             "unit", unit
         ));
     }
-    
-    /**
+      /**
      * Record feature usage
      */
     public void recordFeatureUsage(String feature, Map<String, Object> metadata) {
         Map<String, Object> data = new HashMap<>();
         data.put("feature", feature);
-        data.putAll(metadata);
+        if (metadata != null) {
+            data.putAll(metadata);
+        }
         recordEvent(TelemetryEventType.FEATURE_USAGE, data);
     }
     

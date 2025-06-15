@@ -1,0 +1,2 @@
+org.springframework.context.ApplicationListener=\
+sg.edu.nus.iss.misoto.cli.config.DotenvConfiguration

@@ -62,14 +62,16 @@ public class ConfigManager {
         
         // Start with default configuration
         ApplicationConfig config = new ApplicationConfig();
-        
-        // Load configuration from files
+          // Load configuration from files
         loadConfigFromFiles(config);
+        
+        // Load custom config file from CLI if specified
+        loadCustomConfigFromCli(config, cliOptions);
         
         // Load configuration from environment variables  
         loadConfigFromEnvironment(config);
         
-        // Override with CLI options
+        // Override with CLI options (flags only, not config file)
         applyCliOptions(config, cliOptions);
         
         // Validate configuration
@@ -113,26 +115,40 @@ public class ConfigManager {
         
         log.debug("No configuration file found, using defaults");
     }
+      /**
+     * Load custom config file from CLI if specified
+     */
+    private void loadCustomConfigFromCli(ApplicationConfig config, Map<String, Object> cliOptions) {
+        if (cliOptions == null) return;
+        
+        String configFile = (String) cliOptions.get("config");
+        if (configFile != null && !configFile.isBlank()) {
+            loadCustomConfigFile(config, configFile);
+        }
+    }
     
     /**
      * Load configuration from environment variables
-     */
-    private void loadConfigFromEnvironment(ApplicationConfig config) {
-        // API key from environment
-        String apiKey = System.getenv("ANTHROPIC_API_KEY");
+     */private void loadConfigFromEnvironment(ApplicationConfig config) {
+        // Initialize dotenv loader
+        DotenvLoader.initialize();
+        
+        // API key from environment (via dotenv or system environment)
+        String apiKey = DotenvLoader.getEnv("ANTHROPIC_API_KEY");
         if (apiKey != null && !apiKey.isBlank()) {
             config.setApiKey(apiKey);
-            log.debug("API key loaded from environment");
-        }
-        
+            log.debug("ANTHROPIC_API_KEY found and loaded from environment (length: {} characters)", apiKey.length());
+        } else {
+            log.debug("ANTHROPIC_API_KEY not found in environment variables");
+        }        
         // API base URL
-        String apiUrl = System.getenv("CLAUDE_API_URL");
+        String apiUrl = DotenvLoader.getEnv("CLAUDE_API_URL");
         if (apiUrl != null && !apiUrl.isBlank()) {
             config.setApiBaseUrl(apiUrl);
         }
         
         // Log level
-        String logLevel = System.getenv("CLAUDE_LOG_LEVEL");
+        String logLevel = DotenvLoader.getEnv("CLAUDE_LOG_LEVEL");
         if (logLevel != null && !logLevel.isBlank()) {
             try {
                 config.setLogLevel(LogLevel.valueOf(logLevel.toUpperCase()));
@@ -142,20 +158,18 @@ public class ConfigManager {
         }
         
         // Telemetry opt-out
-        String telemetryEnabled = System.getenv("CLAUDE_TELEMETRY");
+        String telemetryEnabled = DotenvLoader.getEnv("CLAUDE_TELEMETRY");
         if ("0".equals(telemetryEnabled) || "false".equalsIgnoreCase(telemetryEnabled)) {
             config.setTelemetryEnabled(false);
         }
-        
-        // AI model override
-        String model = System.getenv("CLAUDE_MODEL");
+          // AI model override
+        String model = DotenvLoader.getEnv("CLAUDE_MODEL");
         if (model != null && !model.isBlank()) {
             config.setAiModel(model);
         }
     }
-    
-    /**
-     * Apply CLI options to configuration
+      /**
+     * Apply CLI options to configuration (flags only, not config file)
      */
     private void applyCliOptions(ApplicationConfig config, Map<String, Object> cliOptions) {
         if (cliOptions == null) return;
@@ -168,12 +182,6 @@ public class ConfigManager {
         // Quiet logging
         if (Boolean.TRUE.equals(cliOptions.get("quiet"))) {
             config.setLogLevel(LogLevel.ERROR);
-        }
-        
-        // Custom config file
-        String configFile = (String) cliOptions.get("config");
-        if (configFile != null && !configFile.isBlank()) {
-            loadCustomConfigFile(config, configFile);
         }
     }
     

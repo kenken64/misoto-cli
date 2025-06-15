@@ -148,8 +148,7 @@ public class CodebaseAnalyzer {
     }
       /**
      * Find files by content search
-     */
-    public List<FileSearchResult> findFilesByContent(String directory, String searchTerm, 
+     */    public List<FileSearchResult> findFilesByContent(String directory, String searchTerm, 
                                                     FileSearchOptions searchOptions) {
         List<FileSearchResult> results = new ArrayList<>();
         Path dirPath = Paths.get(directory);
@@ -157,11 +156,11 @@ public class CodebaseAnalyzer {
         if (!Files.exists(dirPath)) {
             throw new UserError("Directory does not exist: " + directory);
         }
-        
+
         Pattern searchPattern = Pattern.compile(searchTerm, 
             searchOptions.isCaseSensitive() ? 0 : Pattern.CASE_INSENSITIVE);
         List<Pattern> ignoreRegexes = compileIgnorePatterns(searchOptions.getIgnorePatterns());
-        
+
         try {
             // Convert FileSearchOptions to AnalysisOptions for file finding
             AnalysisOptions analysisOptions = new AnalysisOptions();
@@ -184,7 +183,7 @@ public class CodebaseAnalyzer {
                     }
                 }
                 
-                searchInFile(file, searchPattern, results, searchOptions.getMaxResults());
+                searchInFile(file, searchPattern, results, searchOptions.getMaxResults(), dirPath);
             }
             
         } catch (IOException e) {
@@ -480,13 +479,13 @@ public class CodebaseAnalyzer {
             "pickle", "urllib", "http", "logging", "argparse", "unittest", "subprocess",
             "threading", "multiprocessing", "typing", "enum", "io", "tempfile"
         );
-        
-        String moduleName = importPath.split("\\.")[0];
+          String moduleName = importPath.split("\\.")[0];
         return !stdlibModules.contains(moduleName) && !importPath.startsWith(".");
     }
     
-    // Additional helper methods for searching and dependency parsing would go here...
-      private void searchInFile(Path file, Pattern searchPattern, List<FileSearchResult> results, int maxResults) {
+    // Additional helper methods for searching and dependency parsing would go here...    
+    
+    private void searchInFile(Path file, Pattern searchPattern, List<FileSearchResult> results, int maxResults, Path baseDir) {
         try {
             String content = Files.readString(file);
             String[] lines = content.split("\n");
@@ -494,7 +493,13 @@ public class CodebaseAnalyzer {
             for (int i = 0; i < lines.length; i++) {
                 String line = lines[i];
                 if (searchPattern.matcher(line).find()) {
-                    String relativePath = Paths.get(".").relativize(file).toString();
+                    String relativePath;
+                    try {
+                        relativePath = baseDir.toAbsolutePath().relativize(file.toAbsolutePath()).toString();
+                    } catch (IllegalArgumentException e) {
+                        // Fallback to file name if relativization fails
+                        relativePath = file.getFileName().toString();
+                    }
                     results.add(new FileSearchResult(relativePath, i + 1, line.trim()));
                     
                     if (results.size() >= maxResults) {

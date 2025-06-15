@@ -3,11 +3,22 @@ package sg.edu.nus.iss.misoto;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import sg.edu.nus.iss.misoto.cli.mcp.config.McpCliOptions;
+import sg.edu.nus.iss.misoto.cli.config.DotenvLoader;
+import lombok.extern.slf4j.Slf4j;
 
 @SpringBootApplication
+@Slf4j
 public class MisotoApplication {
 
 	public static void main(String[] args) {
+		// Initialize dotenv early in the application startup
+		DotenvLoader.initialize();
+		
+		// Log startup information
+		log.debug("Starting Misoto application with {} arguments", args.length);
+		log.debug("Environment check - ANTHROPIC_API_KEY: {}", 
+			DotenvLoader.hasEnv("ANTHROPIC_API_KEY") ? "Present" : "Not found");
+		
 		// Process MCP CLI options first
 		McpCliOptions mcpCliOptions = new McpCliOptions();
 		mcpCliOptions.parseArgs(args);

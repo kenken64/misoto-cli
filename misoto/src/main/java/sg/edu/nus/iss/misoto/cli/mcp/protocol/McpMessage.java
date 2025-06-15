@@ -1,5 +1,6 @@
 package sg.edu.nus.iss.misoto.cli.mcp.protocol;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -16,17 +17,7 @@ import lombok.AllArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "method", visible = true)
-@JsonSubTypes({
-    @JsonSubTypes.Type(value = McpRequest.class, name = "initialize"),
-    @JsonSubTypes.Type(value = McpRequest.class, name = "tools/list"),
-    @JsonSubTypes.Type(value = McpRequest.class, name = "tools/call"),
-    @JsonSubTypes.Type(value = McpRequest.class, name = "resources/list"),
-    @JsonSubTypes.Type(value = McpRequest.class, name = "resources/read"),
-    @JsonSubTypes.Type(value = McpNotification.class, name = "initialized"),
-    @JsonSubTypes.Type(value = McpNotification.class, name = "notifications/tools/list_changed"),
-    @JsonSubTypes.Type(value = McpNotification.class, name = "notifications/resources/list_changed")
-})
+@JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class McpMessage {
     
     @JsonProperty("jsonrpc")

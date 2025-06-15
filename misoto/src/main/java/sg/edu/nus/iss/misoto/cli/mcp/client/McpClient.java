@@ -229,9 +229,7 @@ public class McpClient {
                         if (!response.isSuccessful()) {
                             future.completeExceptionally(new IOException("HTTP error: " + response.code()));
                             return;
-                        }
-                        
-                        String responseJson = response.body().string();
+                        }                        String responseJson = response.body().string();
                         log.debug("Received MCP response: {}", responseJson);
                         
                         McpResponse mcpResponse = objectMapper.readValue(responseJson, McpResponse.class);

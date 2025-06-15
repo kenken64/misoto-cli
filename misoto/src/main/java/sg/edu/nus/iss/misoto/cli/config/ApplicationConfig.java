@@ -156,19 +156,18 @@ public class ApplicationConfig {
     public String getApiEndpoint() {
         return apiBaseUrl + "/" + apiVersion;
     }
-    
-    /**
+      /**
      * Check if terminal colors should be used
      */
     public boolean shouldUseColors() {
-        return Boolean.TRUE.equals(terminalUseColors) && 
+        boolean useColors = terminalUseColors != null ? terminalUseColors : true; // Default to true
+        return useColors && 
                (terminalTheme != TerminalTheme.LIGHT || System.getProperty("java.awt.headless", "false").equals("false"));
-    }
-      /**
+    }/**
      * Check if telemetry is enabled
      */
     public boolean isTelemetryEnabled() {
-        return Boolean.TRUE.equals(telemetryEnabled);
+        return telemetryEnabled != null ? telemetryEnabled : true; // Default to true
     }
     
     /**
