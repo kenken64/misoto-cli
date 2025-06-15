@@ -10,6 +10,67 @@ The CLI provides the following functionality:
 - **Code Analysis**: Explain code files using Claude AI
 - **Help System**: Built-in help and command documentation
 
+## 📚 Documentation Index
+
+### Quick Navigation Table
+
+| Category | Document | Description | Status |
+|----------|----------|-------------|--------|
+| **📋 Project Documentation** |
+| Root | [README.md](README.md) | Main project overview and setup guide | ✅ Current |
+| Root | [PORTING_DOCUMENTATION.md](PORTING_DOCUMENTATION.md) | TypeScript to Java porting guide | ✅ Current |
+| Root | [PROJECT_STRUCTURE_UPDATED.md](PROJECT_STRUCTURE_UPDATED.md) | Complete current project structure | ✅ Current |
+| Root | [MARKDOWN_FILES_INVENTORY.md](MARKDOWN_FILES_INVENTORY.md) | Complete inventory of all MD files | ✅ Current |
+| **🏗️ Architecture & Design** |
+| Specs | [specs/architecture.md](specs/architecture.md) | System architecture documentation | ✅ Active |
+| Specs | [specs/overview.md](specs/overview.md) | Project overview and goals | ✅ Active |
+| Specs | [specs/features.md](specs/features.md) | Feature specifications and roadmap | ✅ Active |
+| Specs | [specs/performance.md](specs/performance.md) | Performance requirements and optimizations | ✅ Active |
+| **📖 User Guides** |
+| Specs | [specs/installation.md](specs/installation.md) | Installation instructions | ✅ Active |
+| Specs | [specs/command_reference.md](specs/command_reference.md) | CLI command documentation | ✅ Active |
+| Misoto | [misoto/CLI-README.md](misoto/CLI-README.md) | CLI usage guide | ✅ Active |
+| **🤖 Agent System** |
+| Misoto | [misoto/AGENT_MODE_README.md](misoto/AGENT_MODE_README.md) | **Agent mode documentation** | ✅ Active |
+| Misoto | [misoto/AGENT_IMPLEMENTATION_COMPLETE.md](misoto/AGENT_IMPLEMENTATION_COMPLETE.md) | **Agent implementation status** | ✅ Active |
+| **🔧 Development** |
+| Specs | [specs/development.md](specs/development.md) | Development setup and guidelines | ✅ Active |
+| Specs | [specs/integration.md](specs/integration.md) | Integration documentation | ✅ Active |
+| Specs | [specs/error_handling.md](specs/error_handling.md) | Error handling strategies | ✅ Active |
+| Misoto | [misoto/scripts/README.md](misoto/scripts/README.md) | **Script usage documentation** | ✅ Active |
+| **🔌 MCP Integration** |
+| Misoto | [misoto/MCP_CONFIG_MIGRATION_COMPLETED.md](misoto/MCP_CONFIG_MIGRATION_COMPLETED.md) | **MCP configuration migration** | ✅ Active |
+| Misoto | [misoto/MCP_MULTI_SERVER_COMPLETION.md](misoto/MCP_MULTI_SERVER_COMPLETION.md) | **Multi-server MCP implementation** | ✅ Active |
+| MCP Server | [mcp-server/README.md](mcp-server/README.md) | MCP server implementation guide | ✅ Active |
+| MCP Server | [mcp-server/TESTING_RESULTS.md](mcp-server/TESTING_RESULTS.md) | **MCP server test results** | ✅ Active |
+| **⚙️ Implementation Details** |
+| Misoto | [misoto/README.md](misoto/README.md) | Java implementation overview | ✅ Active |
+| Specs | [specs/index.md](specs/index.md) | Specs directory index | ✅ Active |
+| **📄 Legal & Meta** |
+| Specs | [specs/LICENSE.md](specs/LICENSE.md) | License information | ✅ Active |
+| MCP Server | [mcp-server/.github/copilot-instructions.md](mcp-server/.github/copilot-instructions.md) | GitHub Copilot instructions | ✅ Active |
+| **📚 Legacy Reference (TypeScript)** |
+| Claude Code | [claude-code/LICENSE.md](claude-code/LICENSE.md) | TypeScript implementation license | 📝 Reference |
+| Claude Code | [claude-code/src/ai/client.md](claude-code/src/ai/client.md) | AI client implementation docs | 📝 Reference |
+| Claude Code | [claude-code/src/auth/manager.md](claude-code/src/auth/manager.md) | Authentication manager docs | 📝 Reference |
+| Claude Code | [claude-code/src/commands/index.md](claude-code/src/commands/index.md) | Commands module docs | 📝 Reference |
+| Claude Code | [claude-code/src/config/index.md](claude-code/src/config/index.md) | Configuration docs | 📝 Reference |
+| Claude Code | [claude-code/src/errors/formatter.md](claude-code/src/errors/formatter.md) | Error formatting docs | 📝 Reference |
+| ... | [See MARKDOWN_FILES_INVENTORY.md](MARKDOWN_FILES_INVENTORY.md) | **Complete list of all 66 MD files** | 📝 Full List |
+
+### Legend
+- ✅ **Active**: Currently maintained and up-to-date
+- 📝 **Reference**: Legacy documentation for reference
+- 🔄 **In Progress**: Being updated or modified
+
+### Recent Additions (2025)
+- **Agent System**: Complete autonomous behavior implementation
+- **MCP Integration**: Model Context Protocol with multi-server support  
+- **Performance Optimizations**: Fast shutdown (5s vs 30s) and improved chat experience
+- **Enhanced Documentation**: Comprehensive project structure and inventory
+
+*For the complete list of all 66 markdown files, see [MARKDOWN_FILES_INVENTORY.md](MARKDOWN_FILES_INVENTORY.md)*
+
 ## Project Structure
 
 ```
