@@ -120,13 +120,16 @@ public class ChatCommand implements Command {
         }
     }    private void startChatSession(String initialMessage) throws IOException {
         List<ChatMessage> conversationHistory = new ArrayList<>();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        BufferedReader reader = null;
         
-        // Reset session tracking
-        sessionTotalInputTokens = 0;
-        sessionTotalOutputTokens = 0;
-        sessionTotalCost = 0.0;
-        messageCount = 0;
+        try {
+            reader = new BufferedReader(new InputStreamReader(System.in));
+            
+            // Reset session tracking
+            sessionTotalInputTokens = 0;
+            sessionTotalOutputTokens = 0;
+            sessionTotalCost = 0.0;
+            messageCount = 0;
         
         // Display welcome message
         displayWelcomeMessage();
@@ -135,48 +138,60 @@ public class ChatCommand implements Command {
             System.out.println(FormattingUtil.formatWithColor("You: " + initialMessage, FormattingUtil.ANSI_CYAN + FormattingUtil.ANSI_BOLD));
             processUserMessage(initialMessage, conversationHistory);
         }
-        
-        // Main chat loop
-        while (true) {
-            try {
-                // Show prompt at bottom
-                System.out.print(FormattingUtil.formatWithColor("\n" + "─".repeat(60) + "\n", FormattingUtil.ANSI_GRAY));
-                System.out.print(FormattingUtil.formatWithColor("You: ", FormattingUtil.ANSI_CYAN + FormattingUtil.ANSI_BOLD));
-                String userInput = reader.readLine();
-                  // Check for null input (Ctrl+C or EOF)
-                if (userInput == null) {
-                    displaySessionSummary();
-                    System.out.println("\n" + FormattingUtil.formatWithColor("Chat session ended.", FormattingUtil.ANSI_YELLOW));
-                    break;
-                }
-                
-                userInput = userInput.trim();
-                
-                // Skip empty input
-                if (userInput.isEmpty()) {
-                    continue;
-                }
-                  // Handle chat commands
-                if (userInput.startsWith("/")) {
-                    if (handleChatCommand(userInput, conversationHistory)) {
+              // Main chat loop
+            while (true) {
+                try {
+                    // Show prompt at bottom
+                    System.out.print(FormattingUtil.formatWithColor("\n" + "─".repeat(60) + "\n", FormattingUtil.ANSI_GRAY));
+                    System.out.print(FormattingUtil.formatWithColor("You: ", FormattingUtil.ANSI_CYAN + FormattingUtil.ANSI_BOLD));
+                    String userInput = reader.readLine();
+                      // Check for null input (Ctrl+C or EOF)
+                    if (userInput == null) {
                         displaySessionSummary();
-                        break; // Exit chat if command returns true
+                        System.out.println("\n" + FormattingUtil.formatWithColor("Chat session ended.", FormattingUtil.ANSI_YELLOW));
+                        break;
                     }
-                    continue;
+                    
+                    userInput = userInput.trim();
+                    
+                    // Skip empty input
+                    if (userInput.isEmpty()) {
+                        continue;
+                    }
+                      // Handle chat commands
+                    if (userInput.startsWith("/")) {
+                        if (handleChatCommand(userInput, conversationHistory)) {
+                            displaySessionSummary();
+                            break; // Exit chat if command returns true
+                        }
+                        continue;
+                    }
+                    
+                    // Process user message (this will show Claude's response above)
+                    processUserMessage(userInput, conversationHistory);
+                    
+                } catch (IOException e) {
+                    // Check if this is due to stream being closed during shutdown
+                    if (e.getMessage() != null && e.getMessage().contains("Stream closed")) {
+                        log.info("Chat session terminated due to application shutdown");
+                        System.out.println("\n" + FormattingUtil.formatWithColor("Chat session ended.", FormattingUtil.ANSI_YELLOW));
+                        break;
+                    } else {
+                        log.error("Error reading user input in chat", e);
+                        System.err.println(FormattingUtil.formatWithColor("Error reading input. Ending chat session.", FormattingUtil.ANSI_RED));
+                        break;
+                    }
+                } catch (Exception e) {
+                    log.error("Error processing chat message", e);
+                    System.err.println(FormattingUtil.formatWithColor("Error: " + e.getMessage(), FormattingUtil.ANSI_RED));
+                    // Continue the chat loop even after errors
                 }
-                
-                // Process user message (this will show Claude's response above)
-                processUserMessage(userInput, conversationHistory);
-                
-            } catch (IOException e) {
-                log.error("Error reading user input in chat", e);
-                System.err.println(FormattingUtil.formatWithColor("Error reading input. Ending chat session.", FormattingUtil.ANSI_RED));
-                break;
-            } catch (Exception e) {
-                log.error("Error processing chat message", e);
-                System.err.println(FormattingUtil.formatWithColor("Error: " + e.getMessage(), FormattingUtil.ANSI_RED));
-                // Continue the chat loop even after errors
-            }
+            }        } catch (Exception e) {
+            log.error("Failed to initialize chat session", e);
+            throw new IOException("Failed to start chat session", e);
+        } finally {
+            // Don't close System.in as it's shared across the application
+            reader = null;
         }
     }
     

@@ -1,5 +1,6 @@
 package sg.edu.nus.iss.misoto.cli.agent.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,10 +25,17 @@ public class AgentSystemConfiguration {    /**
      * Agent configuration bean
      */
     @Bean
-    public AgentConfiguration agentConfiguration() {        return AgentConfiguration.builder()
+    public AgentConfiguration agentConfiguration(
+            @Value("${misoto.agent.max-concurrent-tasks:3}") int maxConcurrentTasks,
+            @Value("${misoto.agent.execution-interval-ms:5000}") long executionIntervalMs,
+            @Value("${misoto.agent.shutdown.timeout-seconds:5}") long shutdownTimeoutSeconds,
+            @Value("${misoto.agent.monitoring.shutdown.timeout-seconds:3}") long monitoringShutdownTimeoutSeconds) {
+        return AgentConfiguration.builder()
             .enabled(true)
-            .maxConcurrentTasks(3)
-            .monitoringInterval(Duration.ofMillis(5000L))
+            .maxConcurrentTasks(maxConcurrentTasks)
+            .monitoringInterval(Duration.ofMillis(executionIntervalMs))
+            .shutdownTimeout(Duration.ofSeconds(shutdownTimeoutSeconds))
+            .monitoringShutdownTimeout(Duration.ofSeconds(monitoringShutdownTimeoutSeconds))
             .statePersistence(new AgentConfiguration.StatePersistence())
             .build();
     }

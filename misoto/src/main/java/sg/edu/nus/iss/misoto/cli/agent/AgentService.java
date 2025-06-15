@@ -144,12 +144,12 @@ public class AgentService {
             if (agentLoop != null && !agentLoop.isDone()) {
                 agentLoop.cancel(true);
             }
-            
-            // Shutdown executor
+              // Shutdown executor
             if (agentExecutor != null) {
                 agentExecutor.shutdown();
                 try {
-                    if (!agentExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    long timeoutSeconds = agentConfig.getShutdownTimeout().getSeconds();
+                    if (!agentExecutor.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
                         agentExecutor.shutdownNow();
                     }
                 } catch (InterruptedException e) {

@@ -106,12 +106,12 @@ public class MonitoringService {
                 fileWatcher = null;
             }
             watchedDirectories.clear();
-            
-            // Shutdown executor
+              // Shutdown executor
             if (monitoringExecutor != null) {
                 monitoringExecutor.shutdown();
                 try {
-                    if (!monitoringExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                    long timeoutSeconds = agentConfig.getMonitoringShutdownTimeout().getSeconds();
+                    if (!monitoringExecutor.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
                         monitoringExecutor.shutdownNow();
                     }
                 } catch (InterruptedException e) {

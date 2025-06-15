@@ -46,6 +46,14 @@ public class AgentConfiguration {
     @Builder.Default
     private Duration monitoringInterval = Duration.ofSeconds(30);
     
+    @JsonProperty("shutdown_timeout")
+    @Builder.Default
+    private Duration shutdownTimeout = Duration.ofSeconds(5);
+    
+    @JsonProperty("monitoring_shutdown_timeout")
+    @Builder.Default
+    private Duration monitoringShutdownTimeout = Duration.ofSeconds(3);
+    
     @JsonProperty("decision_model")
     @Builder.Default
     private String decisionModel = "claude-3-haiku-20240307";
