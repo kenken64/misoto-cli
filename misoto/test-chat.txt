@@ -1,0 +1,4 @@
+Hello Claude!
+/model
+/help
+/exit

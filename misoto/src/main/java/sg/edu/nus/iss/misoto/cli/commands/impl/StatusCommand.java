@@ -2,6 +2,7 @@ package sg.edu.nus.iss.misoto.cli.commands.impl;
 
 import sg.edu.nus.iss.misoto.cli.commands.Command;
 import sg.edu.nus.iss.misoto.cli.auth.AuthManager;
+import sg.edu.nus.iss.misoto.cli.ai.AiClient;
 import sg.edu.nus.iss.misoto.cli.utils.FormattingUtil;
 import sg.edu.nus.iss.misoto.cli.utils.ValidationUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +27,9 @@ public class StatusCommand implements Command {
     
     @Autowired
     private AuthManager authManager;
+    
+    @Autowired
+    private AiClient aiClient;
     
     @Override
     public String getName() {
@@ -64,8 +68,7 @@ public class StatusCommand implements Command {
             "claude-code status --verbose"
         );
     }
-    
-    @Override
+      @Override
     public void execute(List<String> args) throws Exception {
         boolean verbose = args.contains("--verbose") || args.contains("-v");
         
@@ -75,6 +78,10 @@ public class StatusCommand implements Command {
         
         // Authentication Status
         displayAuthStatus();
+        System.out.println();
+        
+        // AI Model Information
+        displayAiModelInfo();
         System.out.println();
         
         // System Information
@@ -96,8 +103,7 @@ public class StatusCommand implements Command {
         System.out.println();
         System.out.println(FormattingUtil.formatWithColor("Status check completed at: " + 
             FormattingUtil.formatDate(LocalDateTime.now()), FormattingUtil.ANSI_BLUE));
-    }
-    
+    }    
     private void displayAuthStatus() {
         System.out.println(FormattingUtil.formatWithColor("Authentication:", FormattingUtil.ANSI_GREEN + FormattingUtil.ANSI_BOLD));
         
@@ -114,6 +120,32 @@ public class StatusCommand implements Command {
         } catch (Exception e) {
             System.out.println("  Status: " + FormattingUtil.formatWithColor("⚠ Error checking auth status", FormattingUtil.ANSI_YELLOW));
             log.debug("Error checking authentication status", e);
+        }
+    }
+    
+    private void displayAiModelInfo() {
+        System.out.println(FormattingUtil.formatWithColor("AI Model Configuration:", FormattingUtil.ANSI_GREEN + FormattingUtil.ANSI_BOLD));
+        
+        try {
+            String modelName = aiClient.getModelName();
+            Double temperature = aiClient.getTemperature();
+            Integer maxTokens = aiClient.getMaxTokens();
+            
+            System.out.println("  Model: " + FormattingUtil.formatWithColor(modelName, FormattingUtil.ANSI_CYAN));
+            System.out.println("  Temperature: " + FormattingUtil.formatWithColor(String.format("%.1f", temperature), FormattingUtil.ANSI_CYAN));
+            System.out.println("  Max Tokens: " + FormattingUtil.formatWithColor(String.valueOf(maxTokens), FormattingUtil.ANSI_CYAN));
+            
+            // Check if AI client is ready
+            if (authManager.isAuthenticated() && aiClient.isReady()) {
+                System.out.println("  Status: " + FormattingUtil.formatWithColor("✓ Ready", FormattingUtil.ANSI_GREEN));
+            } else if (!authManager.isAuthenticated()) {
+                System.out.println("  Status: " + FormattingUtil.formatWithColor("⚠ Not authenticated", FormattingUtil.ANSI_YELLOW));
+            } else {
+                System.out.println("  Status: " + FormattingUtil.formatWithColor("⚠ Not initialized", FormattingUtil.ANSI_YELLOW));
+            }
+        } catch (Exception e) {
+            System.out.println("  Status: " + FormattingUtil.formatWithColor("⚠ Error getting model info", FormattingUtil.ANSI_YELLOW));
+            log.debug("Error getting AI model information", e);
         }
     }
     

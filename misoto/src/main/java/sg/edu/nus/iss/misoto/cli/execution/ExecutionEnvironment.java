@@ -1,6 +1,7 @@
 package sg.edu.nus.iss.misoto.cli.execution;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import sg.edu.nus.iss.misoto.cli.errors.UserError;
@@ -350,11 +351,11 @@ public class ExecutionEnvironment {
         private int maxBuffer = 1024 * 1024; // 1MB default
         private boolean captureStderr = true;
     }
-    
-    /**
+      /**
      * Background process options
      */
     @Data
+    @EqualsAndHashCode(callSuper=false)
     public static class BackgroundProcessOptions extends ExecutionOptions {
         private Runnable onOutput;
         private Runnable onError;

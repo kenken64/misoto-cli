@@ -16,32 +16,36 @@ import java.util.HashMap;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class McpConfiguration {
-      /**
+public class McpConfiguration {    /**
      * Client information
      */
     @JsonProperty("client")
+    @Builder.Default
     private ClientConfig client = new ClientConfig();
     
     /**
      * Multiple server configurations
      */
     @JsonProperty("servers")
+    @Builder.Default
     private Map<String, ServerConfig> servers = new HashMap<>();
-    
-    @Data
+      @Data
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
     public static class ClientConfig {
+        @Builder.Default
         private String name = "misoto-cli";
+        @Builder.Default
         private String version = "1.0.0";
+        @Builder.Default
         private int connectTimeout = 30;
+        @Builder.Default
         private int readTimeout = 60;
+        @Builder.Default
         private int writeTimeout = 30;
     }
-    
-    @Data
+      @Data
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
@@ -49,12 +53,14 @@ public class McpConfiguration {
         private String url;
         private String name;
         private String description;
+        @Builder.Default
         private boolean enabled = false;
+        @Builder.Default
         private int priority = 0;
+        @Builder.Default
         private Map<String, String> headers = new HashMap<>();
         private AuthConfig auth;
-        
-        @Data
+          @Data
         @NoArgsConstructor
         @AllArgsConstructor
         @Builder
@@ -63,6 +69,7 @@ public class McpConfiguration {
             private String token;
             private String username;
             private String password;
+            @Builder.Default
             private String header = "Authorization";
         }
     }

@@ -18,46 +18,60 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AgentConfiguration {
-    
-    @JsonProperty("enabled")
+      @JsonProperty("enabled")
+    @Builder.Default
     private boolean enabled = false;
     
     @JsonProperty("agent_name")
+    @Builder.Default
     private String agentName = "misoto-agent";
     
     @JsonProperty("mode")
+    @Builder.Default
     private AgentMode mode = AgentMode.INTERACTIVE;
     
     @JsonProperty("auto_start")
+    @Builder.Default
     private boolean autoStart = false;
     
     @JsonProperty("max_concurrent_tasks")
+    @Builder.Default
     private int maxConcurrentTasks = 3;
     
     @JsonProperty("task_timeout")
+    @Builder.Default
     private Duration taskTimeout = Duration.ofMinutes(30);
     
     @JsonProperty("monitoring_interval")
+    @Builder.Default
     private Duration monitoringInterval = Duration.ofSeconds(30);
     
     @JsonProperty("decision_model")
+    @Builder.Default
     private String decisionModel = "claude-3-haiku-20240307";
     
     @JsonProperty("decision_temperature")
+    @Builder.Default
     private double decisionTemperature = 0.3;
     
     @JsonProperty("state_persistence")
+    @Builder.Default
     private StatePersistence statePersistence = new StatePersistence();
     
     @JsonProperty("monitoring")
+    @Builder.Default
     private MonitoringConfig monitoringConfig = new MonitoringConfig();
-      @JsonProperty("triggers")
+    
+    @JsonProperty("triggers")
+    @Builder.Default
     private List<TriggerConfig> triggers = List.of();
     
     @JsonProperty("monitoring_triggers")
+    @Builder.Default
     private List<MonitoringTrigger> monitoringTriggers = List.of();
     
     @JsonProperty("capabilities")
+    @Builder.Default
     private Map<String, Boolean> capabilities = Map.of(
         "file_operations", true,
         "command_execution", true,
@@ -73,50 +87,68 @@ public class AgentConfiguration {
         SUPERVISED,     // Agent operates autonomously but reports major decisions
         MANUAL         // Agent only acts when explicitly commanded
     }
-    
-    @Data
+      @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class StatePersistence {
         @JsonProperty("enabled")
+        @Builder.Default
         private boolean enabled = true;
         
         @JsonProperty("file_path")
+        @Builder.Default
         private String filePath = ".misoto/agent-state.json";
         
         @JsonProperty("backup_interval")
+        @Builder.Default
         private Duration backupInterval = Duration.ofMinutes(5);
         
         @JsonProperty("max_history_entries")
+        @Builder.Default
         private int maxHistoryEntries = 1000;
         
         @JsonProperty("compress_old_data")
+        @Builder.Default
         private boolean compressOldData = true;
     }
-    
-    @Data
+      @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class MonitoringConfig {
         @JsonProperty("file_system")
+        @Builder.Default
         private boolean fileSystemMonitoring = true;
         
         @JsonProperty("process_monitoring")
+        @Builder.Default
         private boolean processMonitoring = true;
         
         @JsonProperty("network_monitoring")
+        @Builder.Default
         private boolean networkMonitoring = false;
         
         @JsonProperty("log_monitoring")
+        @Builder.Default
         private boolean logMonitoring = true;
         
         @JsonProperty("watched_directories")
+        @Builder.Default
         private List<String> watchedDirectories = List.of(".", "src", "target");
         
         @JsonProperty("watched_file_patterns")
+        @Builder.Default
         private List<String> watchedFilePatterns = List.of("*.java", "*.properties", "*.yml", "*.json");
         
         @JsonProperty("ignored_patterns")
+        @Builder.Default
         private List<String> ignoredPatterns = List.of("target/**", ".git/**", "*.class", "*.jar");
     }
-    
-    @Data
+      @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class TriggerConfig {
         @JsonProperty("type")
         private TriggerType type;
@@ -128,6 +160,7 @@ public class AgentConfiguration {
         private String description;
         
         @JsonProperty("enabled")
+        @Builder.Default
         private boolean enabled = true;
         
         @JsonProperty("conditions")
@@ -137,6 +170,7 @@ public class AgentConfiguration {
         private List<String> actions;
         
         @JsonProperty("cooldown")
+        @Builder.Default
         private Duration cooldown = Duration.ofMinutes(1);
           public enum TriggerType {
             FILE_CHANGE,

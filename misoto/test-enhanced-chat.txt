@@ -1,0 +1,5 @@
+Hello Claude! Can you tell me about Java programming?
+/usage
+/model
+/help
+/exit

@@ -28,20 +28,24 @@ public class CommandRegistrationService {
     private LogoutCommand logoutCommand;
       @Autowired
     private ExplainCommand explainCommand;
+      @Autowired
+    private McpCommand mcpCommand;
+      @Autowired
+    private InfoCommand infoCommand;
     
     @Autowired
-    private McpCommand mcpCommand;
+    private ChatCommand chatCommand;
       /**
      * Register all commands after bean initialization
-     */
-    @PostConstruct
-    public void registerAllCommands() {
-        List<Command> commands = List.of(
+     */    @PostConstruct
+    public void registerAllCommands() {        List<Command> commands = List.of(
             askCommand,
             loginCommand,
             logoutCommand,
             explainCommand,
-            mcpCommand
+            mcpCommand,
+            infoCommand,
+            chatCommand
         );
         
         for (Command command : commands) {
