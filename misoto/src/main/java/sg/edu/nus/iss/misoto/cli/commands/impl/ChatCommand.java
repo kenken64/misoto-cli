@@ -462,37 +462,46 @@ public class ChatCommand implements Command {
         
         System.out.println(FormattingUtil.formatWithColor(
             String.format("Mode: %s", agentConfig.getMode().name()), 
-            FormattingUtil.ANSI_BLUE));
-        
-        System.out.println(FormattingUtil.formatWithColor("\nAgent Commands:", FormattingUtil.ANSI_YELLOW));
+            FormattingUtil.ANSI_BLUE));        System.out.println(FormattingUtil.formatWithColor("\nAgent Commands:", FormattingUtil.ANSI_YELLOW));
         System.out.println("• Type 'start' to start the agent");
         System.out.println("• Type 'stop' to stop the agent");
         System.out.println("• Type 'status' to see detailed agent status");
         System.out.println("• Type 'task <description>' to submit a task to the agent");
         System.out.println("• Type 'mode <INTERACTIVE|AUTONOMOUS|SUPERVISED|MANUAL>' to change mode");
+        System.out.println("• Type 'exit' or 'back' to return to chat");
         System.out.println("• Press Enter to return to chat");
         
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
-            System.out.print(FormattingUtil.formatWithColor("\nAgent> ", FormattingUtil.ANSI_PURPLE + FormattingUtil.ANSI_BOLD));
-            String agentInput = reader.readLine();
-            
-            if (agentInput == null || agentInput.trim().isEmpty()) {
-                return;
+            while (true) {
+                System.out.print(FormattingUtil.formatWithColor("\nAgent> ", FormattingUtil.ANSI_PURPLE + FormattingUtil.ANSI_BOLD));
+                String agentInput = reader.readLine();
+                
+                if (agentInput == null || agentInput.trim().isEmpty()) {
+                    System.out.println(FormattingUtil.formatWithColor("\n↩️ Returning to chat mode...", FormattingUtil.ANSI_GRAY));
+                    return;
+                }
+                
+                if (!processAgentCommand(agentInput.trim(), conversationHistory)) {
+                    System.out.println(FormattingUtil.formatWithColor("\n↩️ Returning to chat mode...", FormattingUtil.ANSI_GRAY));
+                    return;
+                }
             }
-            
-            processAgentCommand(agentInput.trim(), conversationHistory);
             
         } catch (IOException e) {
             log.error("Error reading agent command", e);
             System.err.println(FormattingUtil.formatWithColor("Error reading command", FormattingUtil.ANSI_RED));
         }
     }
-    
-    private void processAgentCommand(String command, List<ChatMessage> conversationHistory) {
+      private boolean processAgentCommand(String command, List<ChatMessage> conversationHistory) {
         String[] parts = command.split("\\s+", 2);
         String action = parts[0].toLowerCase();
         
         switch (action) {
+            case "exit":
+            case "back":
+            case "return":
+                return false; // Signal to exit agent mode
+                
             case "start":
                 if (agentService.isRunning()) {
                     System.out.println(FormattingUtil.formatWithColor("\n🤖 Agent is already running", FormattingUtil.ANSI_YELLOW));
@@ -502,8 +511,7 @@ public class ChatCommand implements Command {
                         System.out.println(FormattingUtil.formatWithColor("\n🚀 Agent started successfully!", FormattingUtil.ANSI_GREEN));
                     } catch (Exception e) {
                         System.out.println(FormattingUtil.formatWithColor("\n❌ Failed to start agent: " + e.getMessage(), FormattingUtil.ANSI_RED));
-                    }
-                }
+                    }                }
                 break;
                 
             case "stop":
@@ -541,8 +549,10 @@ public class ChatCommand implements Command {
                 
             default:
                 System.out.println(FormattingUtil.formatWithColor("\n❓ Unknown agent command: " + action, FormattingUtil.ANSI_RED));
+                System.out.println(FormattingUtil.formatWithColor("   Type 'exit' to return to chat or try: start, stop, status, task, mode", FormattingUtil.ANSI_GRAY));
                 break;
         }
+        return true; // Continue in agent mode
     }
     
     private void displayAgentStatus() {

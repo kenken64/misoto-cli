@@ -12,6 +12,7 @@ import sg.edu.nus.iss.misoto.cli.mcp.manager.McpServerManager;
 import sg.edu.nus.iss.misoto.cli.mcp.model.McpTool;
 import sg.edu.nus.iss.misoto.cli.mcp.model.McpToolResult;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -372,15 +373,14 @@ public class McpCommand implements Command {
             log.error("Error listing MCP tools", e);
             System.err.println("✗ Error listing tools: " + e.getMessage());
         }
-    }
-      private void handleToolCall(String[] args) {
+    }    private void handleToolCall(String[] args) {
         if (args.length < 2) {
             System.err.println("Usage: mcp call <tool-name> [arguments]");
             return;
         }
         
         String toolName = args[1];
-        Map<String, Object> arguments = Map.of(); // Parse from args if needed
+        Map<String, Object> arguments = parseToolArguments(args, toolName);
         
         System.out.printf("Calling tool '%s'...%n", toolName);
         
@@ -403,6 +403,46 @@ public class McpCommand implements Command {
             log.error("Error calling MCP tool: {}", toolName, e);
             System.err.println("✗ Error calling tool: " + e.getMessage());
         }
+    }
+    
+    private Map<String, Object> parseToolArguments(String[] args, String toolName) {
+        Map<String, Object> arguments = new HashMap<>();
+        
+        // Handle specific tool arguments
+        switch (toolName) {
+            case "echo":
+                if (args.length > 2) {
+                    // Join all remaining arguments as the text to echo
+                    String text = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length));
+                    arguments.put("text", text);
+                }
+                break;
+            case "calculate":
+                if (args.length > 2) {
+                    String expression = String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length));
+                    arguments.put("expression", expression);
+                }
+                break;
+            case "system_info":
+            case "current_time":
+                // These tools don't need arguments
+                break;
+            default:
+                // For unknown tools, try to parse key=value pairs
+                for (int i = 2; i < args.length; i++) {
+                    String arg = args[i];
+                    if (arg.contains("=")) {
+                        String[] keyValue = arg.split("=", 2);
+                        arguments.put(keyValue[0], keyValue[1]);
+                    } else {
+                        // If no key=value format, add as numbered argument
+                        arguments.put("arg" + (i - 1), arg);
+                    }
+                }
+                break;
+        }
+        
+        return arguments;
     }
       private void handleSSE() {
         System.out.println("Connecting to MCP SSE streams...");
