@@ -67,8 +67,8 @@ public class InfoCommand implements Command {
             System.out.println();
             System.out.println("Details:");
             System.out.println("  Model: " + FormattingUtil.formatWithColor(aiClient.getModelName(), FormattingUtil.ANSI_CYAN));
-            System.out.println("  Temperature: " + FormattingUtil.formatWithColor(String.format("%.1f", aiClient.getTemperature()), FormattingUtil.ANSI_CYAN));
-            System.out.println("  Max Tokens: " + FormattingUtil.formatWithColor(String.valueOf(aiClient.getMaxTokens()), FormattingUtil.ANSI_CYAN));
+            System.out.println("  Provider: " + FormattingUtil.formatWithColor(aiClient.getCurrentProvider(), FormattingUtil.ANSI_CYAN));
+            System.out.println("  Model Info: " + FormattingUtil.formatWithColor(aiClient.getModelInfo(), FormattingUtil.ANSI_CYAN));
             
         } catch (Exception e) {
             System.out.println(FormattingUtil.formatWithColor("Error getting model information: " + e.getMessage(), FormattingUtil.ANSI_RED));

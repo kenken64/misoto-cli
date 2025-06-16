@@ -70,6 +70,7 @@ public class TaskExecutorService {
                 case MCP_RESOURCE_ACCESS -> executeMcpResourceAccess(task);
                 case MCP_SERVER_MANAGEMENT -> executeMcpServerManagement(task);
                 
+                case SYSTEM -> executeSystemTask(task);
                 case SYSTEM_MONITORING -> executeSystemMonitoring(task);
                 case LOG_ANALYSIS -> executeLogAnalysis(task);
                 case HEALTH_CHECK -> executeHealthCheck(task);
@@ -235,6 +236,7 @@ public class TaskExecutorService {
                 case "bash", "sh" -> "bash " + tempScript;
                 case "powershell", "ps1" -> "powershell -File " + tempScript;
                 case "python", "py" -> "python " + tempScript;
+                case "lua" -> "lua " + tempScript;
                 default -> tempScript.toString();
             };
             
@@ -278,16 +280,114 @@ public class TaskExecutorService {
     }
     
     private AgentTask.TaskResult executeCodeGeneration(AgentTask task) throws Exception {
-        String specification = (String) task.getParameters().get("specification");
-        String language = (String) task.getParameters().getOrDefault("language", "java");
+        String taskDescription = (String) task.getParameters().get("task_description");
+        String conversationContext = (String) task.getParameters().get("conversation_context");
         
-        String prompt = "Generate " + language + " code based on this specification:\n" + specification;
-        String response = aiClient.sendMessage(prompt);
+        // Analyze the task to extract requirements
+        String analysisPrompt = "Analyze this task request and identify:\n" +
+                "1. Programming language needed\n" +
+                "2. Filename to create\n" +
+                "3. Code to generate\n" +
+                "4. Any additional files or directories needed\n\n" +
+                "Task: " + taskDescription + "\n\n" +
+                "Respond in this format:\n" +
+                "LANGUAGE: <language>\n" +
+                "FILENAME: <filename>\n" +
+                "DIRECTORIES: <comma-separated list or 'none'>\n" +
+                "CODE:\n<actual code>\n" +
+                "END_CODE";
         
-        return AgentTask.TaskResult.builder()
-            .output(response)
-            .artifacts(Map.of("language", language, "specification_length", specification.length()))
-            .build();
+        String analysisResponse = aiClient.sendMessage(analysisPrompt);
+        
+        // Parse the analysis response
+        Map<String, String> parsedResponse = parseAnalysisResponse(analysisResponse);
+        String language = parsedResponse.getOrDefault("LANGUAGE", "python");
+        String filename = parsedResponse.getOrDefault("FILENAME", "generated_code." + getFileExtension(language));
+        String directories = parsedResponse.getOrDefault("DIRECTORIES", "none");
+        String code = parsedResponse.getOrDefault("CODE", "# Generated code\nprint('Hello, World!')");
+        
+        List<String> filesCreated = new ArrayList<>();
+        List<String> commandsExecuted = new ArrayList<>();
+        
+        try {
+            // Create directories if needed
+            if (!"none".equals(directories)) {
+                for (String dir : directories.split(",")) {
+                    String trimmedDir = dir.trim();
+                    if (!trimmedDir.isEmpty()) {
+                        Path dirPath = Paths.get(trimmedDir);
+                        Files.createDirectories(dirPath);
+                        log.info("Created directory: {}", trimmedDir);
+                    }
+                }
+            }
+            
+            // Create the file
+            Path filePath = Paths.get(filename);
+            Files.createDirectories(filePath.getParent() != null ? filePath.getParent() : Paths.get("."));
+            Files.writeString(filePath, code);
+            filesCreated.add(filename);
+            log.info("Created file: {}", filename);
+            
+            // List files in current directory
+            List<String> currentFiles = Files.list(Paths.get("."))
+                .map(path -> path.getFileName().toString())
+                .sorted()
+                .collect(java.util.stream.Collectors.toList());
+            
+            String listOutput = "Files in current directory:\n" + String.join("\n", currentFiles);
+            commandsExecuted.add("ls (list current directory)");
+            
+            // Try to run the generated code if it's a script
+            String runOutput = "";
+            if (language.toLowerCase().contains("python") && filename.endsWith(".py")) {
+                try {
+                    ExecutionEnvironment.ExecutionResult result = executionEnvironment.executeCommand("python " + filename);
+                    runOutput = "\n\nScript execution result:\n" + result.getOutput();
+                    commandsExecuted.add("python " + filename);
+                } catch (Exception e) {
+                    runOutput = "\n\nScript execution failed: " + e.getMessage();
+                }
+            } else if (language.toLowerCase().contains("lua") && filename.endsWith(".lua")) {
+                try {
+                    ExecutionEnvironment.ExecutionResult result = executionEnvironment.executeCommand("lua " + filename);
+                    runOutput = "\n\nLua script execution result:\n" + result.getOutput();
+                    commandsExecuted.add("lua " + filename);
+                } catch (Exception e) {
+                    runOutput = "\n\nLua script execution failed (lua interpreter may not be installed): " + e.getMessage();
+                }
+            } else if ((language.toLowerCase().contains("yaml") || language.toLowerCase().contains("yml")) && 
+                       (filename.endsWith(".yml") || filename.endsWith(".yaml"))) {
+                runOutput = "\n\nYAML file created successfully. Use 'cat " + filename + "' to view contents.";
+                commandsExecuted.add("Generated YAML configuration file");
+            }
+            
+            String fullOutput = "Successfully generated " + language + " code!\n\n" +
+                    "Created file: " + filename + "\n" +
+                    "File size: " + Files.size(filePath) + " bytes\n\n" +
+                    listOutput + runOutput;
+            
+            return AgentTask.TaskResult.builder()
+                .success(true)
+                .output(fullOutput)
+                .filesCreated(filesCreated)
+                .commandsExecuted(commandsExecuted)
+                .artifacts(Map.of(
+                    "language", language,
+                    "filename", filename,
+                    "code_length", code.length(),
+                    "files_in_directory", currentFiles.size()
+                ))
+                .build();
+                
+        } catch (Exception e) {
+            log.error("Error in code generation task", e);
+            return AgentTask.TaskResult.builder()
+                .success(false)
+                .output("Failed to generate code: " + e.getMessage())
+                .error(e.getMessage())
+                .build();
+        }
     }
     
     private AgentTask.TaskResult executeDecisionMaking(AgentTask task) throws Exception {
@@ -372,6 +472,24 @@ public class TaskExecutorService {
     }
     
     // System Operations
+    private AgentTask.TaskResult executeSystemTask(AgentTask task) throws Exception {
+        String action = (String) task.getParameters().getOrDefault("action", "test");
+        
+        // Simple system task execution for testing
+        Map<String, Object> result = new HashMap<>();
+        result.put("action", action);
+        result.put("timestamp", Instant.now());
+        result.put("status", "completed");
+        
+        String output = String.format("System task '%s' executed successfully at %s", 
+                                    action, Instant.now());
+        
+        return AgentTask.TaskResult.builder()
+            .output(output)
+            .artifacts(result)
+            .build();
+    }
+    
     private AgentTask.TaskResult executeSystemMonitoring(AgentTask task) throws Exception {
         String metric = (String) task.getParameters().getOrDefault("metric", "general");
         
@@ -469,5 +587,62 @@ public class TaskExecutorService {
             .parameters((Map<String, Object>) subtaskDef.getOrDefault("parameters", Map.of()))
             .context(parentTask.getContext())
             .build();
+    }
+    
+    /**
+     * Parse AI analysis response into structured data
+     */
+    private Map<String, String> parseAnalysisResponse(String response) {
+        Map<String, String> result = new HashMap<>();
+        String[] lines = response.split("\n");
+        StringBuilder codeBuilder = new StringBuilder();
+        boolean inCodeSection = false;
+        
+        for (String line : lines) {
+            line = line.trim();
+            
+            if (line.startsWith("LANGUAGE:")) {
+                result.put("LANGUAGE", line.substring("LANGUAGE:".length()).trim().toLowerCase());
+            } else if (line.startsWith("FILENAME:")) {
+                result.put("FILENAME", line.substring("FILENAME:".length()).trim());
+            } else if (line.startsWith("DIRECTORIES:")) {
+                result.put("DIRECTORIES", line.substring("DIRECTORIES:".length()).trim());
+            } else if (line.equals("CODE:")) {
+                inCodeSection = true;
+            } else if (line.equals("END_CODE")) {
+                inCodeSection = false;
+            } else if (inCodeSection) {
+                codeBuilder.append(line).append("\n");
+            }
+        }
+        
+        result.put("CODE", codeBuilder.toString().trim());
+        return result;
+    }
+    
+    /**
+     * Get file extension for programming language
+     */
+    private String getFileExtension(String language) {
+        return switch (language.toLowerCase()) {
+            case "python", "py" -> "py";
+            case "java" -> "java";
+            case "javascript", "js" -> "js";
+            case "typescript", "ts" -> "ts";
+            case "c" -> "c";
+            case "cpp", "c++" -> "cpp";
+            case "csharp", "c#" -> "cs";
+            case "go" -> "go";
+            case "rust" -> "rs";
+            case "ruby" -> "rb";
+            case "php" -> "php";
+            case "swift" -> "swift";
+            case "kotlin" -> "kt";
+            case "lua" -> "lua";
+            case "yaml", "yml" -> "yml";
+            case "bash", "shell" -> "sh";
+            case "powershell" -> "ps1";
+            default -> "txt";
+        };
     }
 }

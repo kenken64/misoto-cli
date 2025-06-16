@@ -297,6 +297,9 @@ public class TaskQueueService {
             AgentTask.TaskResult result = taskExecutor.executeTask(task);
             task.markCompleted(result);
             
+            // Increment total tasks executed counter in state manager
+            stateManager.incrementTotalTasksExecuted();
+            
             log.info("Task completed successfully: {} [{}]", task.getName(), task.getId());
             
             // Trigger dependent tasks
@@ -406,7 +409,7 @@ public class TaskQueueService {
      */
     public List<AgentTask> getReadyTasks(int maxTasks) {
         return tasks.values().stream()
-            .filter(task -> task.getStatus() == AgentTask.TaskStatus.PENDING)
+            .filter(task -> task.getStatus() == AgentTask.TaskStatus.QUEUED || task.getStatus() == AgentTask.TaskStatus.PENDING)
             .filter(AgentTask::canExecute)
             .sorted((a, b) -> b.getPriority().ordinal() - a.getPriority().ordinal())
             .limit(maxTasks)
@@ -452,10 +455,13 @@ public class TaskQueueService {
     public TaskQueueStats getStatistics() {
         Map<AgentTask.TaskStatus, Long> statusCounts = tasks.values().stream()
             .collect(Collectors.groupingBy(AgentTask::getStatus, Collectors.counting()));
+              // For backward compatibility, count QUEUED tasks as "pending" since they're waiting to be processed
+        int pendingCount = statusCounts.getOrDefault(AgentTask.TaskStatus.PENDING, 0L).intValue() +
+                          statusCounts.getOrDefault(AgentTask.TaskStatus.QUEUED, 0L).intValue();
               return TaskQueueStats.builder()
             .totalTasks(tasks.size())
             .queuedTasks(statusCounts.getOrDefault(AgentTask.TaskStatus.QUEUED, 0L).intValue())
-            .pendingTasks(statusCounts.getOrDefault(AgentTask.TaskStatus.PENDING, 0L).intValue())
+            .pendingTasks(pendingCount)
             .runningTasks(statusCounts.getOrDefault(AgentTask.TaskStatus.RUNNING, 0L).intValue())
             .completedTasks(statusCounts.getOrDefault(AgentTask.TaskStatus.COMPLETED, 0L).intValue())
             .failedTasks(statusCounts.getOrDefault(AgentTask.TaskStatus.FAILED, 0L).intValue())

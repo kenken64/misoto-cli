@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import sg.edu.nus.iss.misoto.cli.ai.provider.impl.AnthropicProvider;
 import sg.edu.nus.iss.misoto.cli.ai.provider.impl.OllamaProvider;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.util.*;
 
 /**
@@ -36,8 +36,26 @@ public class AiProviderManager {
         registerProvider(anthropicProvider);
         registerProvider(ollamaProvider);
         
-        // Set default provider
-        setCurrentProvider(defaultProviderName);
+        // Try to set default provider with fallback
+        if (!setCurrentProvider(defaultProviderName)) {
+            log.warn("Default provider '{}' is not available, trying fallback options", defaultProviderName);
+            
+            // Try fallback providers in order of preference
+            String[] fallbackOrder = {"ollama", "anthropic"};
+            boolean providerSet = false;
+            
+            for (String fallbackProvider : fallbackOrder) {
+                if (!fallbackProvider.equals(defaultProviderName) && setCurrentProvider(fallbackProvider)) {
+                    log.info("Successfully fell back to provider: {}", fallbackProvider);
+                    providerSet = true;
+                    break;
+                }
+            }
+            
+            if (!providerSet) {
+                log.error("No AI providers are available!");
+            }
+        }
         
         initialized = true;
         log.info("AI Provider Manager initialized with {} providers. Current: {}", 
@@ -226,10 +244,37 @@ public class AiProviderManager {
                 break;
             case "ollama":
                 config.put("base_url", "http://localhost:11434");
-                config.put("model", "llama3.2");
+                config.put("model", "qwen2.5:0.5b");
                 break;
         }
         
         return config;
+    }
+    
+    /**
+     * Try to automatically switch to an available provider when current provider fails
+     */
+    public boolean tryFallbackProvider() {
+        if (currentProvider != null && currentProvider.isAvailable()) {
+            return true; // Current provider is still working
+        }
+        
+        log.warn("Current provider '{}' is not available, attempting automatic fallback", 
+            currentProvider != null ? currentProvider.getProviderName() : "none");
+        
+        // Try all other providers
+        String[] fallbackOrder = {"ollama", "anthropic"};
+        
+        for (String fallbackProvider : fallbackOrder) {
+            if (currentProvider == null || !fallbackProvider.equals(currentProvider.getProviderName())) {
+                if (setCurrentProvider(fallbackProvider)) {
+                    log.info("Successfully fell back to provider: {}", fallbackProvider);
+                    return true;
+                }
+            }
+        }
+        
+        log.error("No AI providers are available for fallback!");
+        return false;
     }
 }

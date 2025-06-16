@@ -125,8 +125,9 @@ public class AnthropicProvider implements AiProvider {
             Usage usage = response.getMetadata().getUsage();
             AiUsage aiUsage = null;
             if (usage != null) {
-                Double cost = calculateCost(usage.getPromptTokens(), usage.getGenerationTokens());
-                aiUsage = AiUsage.of(usage.getPromptTokens(), usage.getGenerationTokens(), cost);
+                Integer outputTokens = usage.getTotalTokens() - usage.getPromptTokens();
+                Double cost = calculateCost(usage.getPromptTokens(), outputTokens);
+                aiUsage = AiUsage.of(usage.getPromptTokens(), outputTokens, cost);
                 lastUsage = aiUsage;
             }
             

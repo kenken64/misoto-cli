@@ -105,6 +105,9 @@ public class AgentService {
             stateManager.initialize(agentConfig.getStatePersistence());
             stateManager.initializeState();
             
+            // Initialize task queue service
+            taskQueue.initialize(agentConfig);
+            
             // Start monitoring service
             monitoringService.startMonitoring();
             
@@ -228,8 +231,7 @@ public class AgentService {
             // 1. Update state with current cycle info
             stateManager.updateLastActivity(LocalDateTime.now());
             
-            // 2. Process pending tasks
-            processPendingTasks();
+            // 2. Task processing is handled by TaskQueueService internally
             
             // 3. Make decisions about new tasks
             makeDecisions();

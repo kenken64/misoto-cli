@@ -97,6 +97,21 @@ public class AiClient {
             
         } catch (Exception e) {
             log.error("Failed to send message to AI provider: {}", e.getMessage());
+            
+            // Try fallback provider
+            if (providerManager.tryFallbackProvider()) {
+                log.info("Retrying with fallback provider");
+                try {
+                    AiResponse response = providerManager.sendMessage(systemPrompt, userMessage);
+                    if (response.isSuccess()) {
+                        log.debug("Received response from fallback AI provider");
+                        return response.getText();
+                    }
+                } catch (Exception fallbackException) {
+                    log.error("Fallback provider also failed: {}", fallbackException.getMessage());
+                }
+            }
+            
             throw new RuntimeException("Failed to communicate with AI provider: " + e.getMessage(), e);
         }
     }
@@ -148,30 +163,6 @@ public class AiClient {
         AiProvider provider = providerManager.getCurrentProvider();
         return provider != null ? provider.getCurrentModel() : "unknown";
     }
-        if (!isReady()) {
-            throw new IllegalStateException("AI client not ready. Call initialize() first.");
-        }
-        
-        log.debug("Sending message with system prompt to Claude AI");
-        
-        try {
-            // Create system and user messages
-            SystemMessage sysMsg = new SystemMessage(systemPrompt);
-            UserMessage userMsg = new UserMessage(userMessage);
-            
-            Prompt prompt = new Prompt(List.of(sysMsg, userMsg));
-            
-            ChatResponse result = anthropicChatModel.call(prompt);
-            String response = result.getResult().getOutput().getText();
-            
-            log.debug("Received response from Claude AI");
-            return response;
-            
-        } catch (Exception e) {
-            log.error("Failed to send message to Claude AI: {}", e.getMessage());
-            throw new RuntimeException("Failed to communicate with Claude AI: " + e.getMessage(), e);
-        }
-    }
     
     /**
      * Calculate estimated cost based on model and token usage
@@ -216,116 +207,66 @@ public class AiClient {
         return inputCost + outputCost;
     }
 
-    /**
-     * Send a message with detailed usage information
-     */
-    public AiResponse sendMessageWithUsage(String systemPrompt, String userMessage) throws Exception {
-        if (!isReady()) {
-            throw new IllegalStateException("AI client not ready. Call initialize() first.");
-        }
-        
-        log.debug("Sending message with system prompt to Claude AI");
-        
-        try {
-            // Create system and user messages
-            SystemMessage sysMsg = new SystemMessage(systemPrompt);
-            UserMessage userMsg = new UserMessage(userMessage);
-            
-            Prompt prompt = new Prompt(List.of(sysMsg, userMsg));
-            
-            ChatResponse result = anthropicChatModel.call(prompt);
-            String responseText = result.getResult().getOutput().getText();            // Extract usage information
-            Usage usage = result.getMetadata().getUsage();
-            Integer inputTokens = usage != null ? usage.getPromptTokens() : null;
-            Integer outputTokens = null;
-            Integer totalTokens = usage != null ? usage.getTotalTokens() : null;
-            
-            // Try different method names for output tokens
-            if (usage != null) {
-                try {
-                    // Try common method names
-                    outputTokens = (Integer) usage.getClass().getMethod("getGenerationTokens").invoke(usage);
-                } catch (Exception e1) {
-                    try {
-                        outputTokens = (Integer) usage.getClass().getMethod("getOutputTokens").invoke(usage);
-                    } catch (Exception e2) {
-                        try {
-                            outputTokens = (Integer) usage.getClass().getMethod("getCompletionTokens").invoke(usage);
-                        } catch (Exception e3) {
-                            // If we can't get output tokens specifically, calculate from total - input
-                            if (totalTokens != null && inputTokens != null) {
-                                outputTokens = totalTokens - inputTokens;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Calculate estimated cost
-            Double estimatedCost = calculateEstimatedCost(modelName, inputTokens, outputTokens);
-            
-            log.debug("Received response from Claude AI - Input tokens: {}, Output tokens: {}, Total: {}", 
-                     inputTokens, outputTokens, totalTokens);
-            
-            return new AiResponse(responseText, inputTokens, outputTokens, totalTokens, estimatedCost);
-            
-        } catch (Exception e) {
-            log.error("Failed to send message to Claude AI: {}", e.getMessage());
-            throw new RuntimeException("Failed to communicate with Claude AI: " + e.getMessage(), e);
-        }
-    }
     
     /**
      * Get information about the current AI model configuration
      */
     public String getModelInfo() {
-        return String.format("Model: %s | Temperature: %.1f | Max Tokens: %d", 
-                modelName, temperature, maxTokens);
+        AiProvider provider = providerManager.getCurrentProvider();
+        if (provider != null) {
+            return String.format("Model: %s | Provider: %s", 
+                    provider.getCurrentModel(), provider.getClass().getSimpleName());
+        }
+        return "No AI provider available";
     }
     
     /**
      * Get the current model name
      */
     public String getModelName() {
-        return modelName;
+        return getCurrentModel();
     }
     
-    /**
-     * Get the current temperature setting
-     */
-    public Double getTemperature() {
-        return temperature;
-    }
     
     /**
-     * Get the current max tokens setting
+     * Send a message with detailed usage information
+     * Uses the provider manager to get usage stats
      */
-    public Integer getMaxTokens() {
-        return maxTokens;
-    }
-    
-    /**
-     * AI Response with usage information
-     */
-    public static class AiResponse {
-        private final String text;
-        private final Integer inputTokens;
-        private final Integer outputTokens;
-        private final Integer totalTokens;
-        private final Double estimatedCost;
-        
-        public AiResponse(String text, Integer inputTokens, Integer outputTokens, Integer totalTokens, Double estimatedCost) {
-            this.text = text;
-            this.inputTokens = inputTokens;
-            this.outputTokens = outputTokens;
-            this.totalTokens = totalTokens;
-            this.estimatedCost = estimatedCost;
+    public sg.edu.nus.iss.misoto.cli.ai.provider.AiResponse sendMessageWithUsage(String systemPrompt, String userMessage) throws Exception {
+        if (!isReady()) {
+            throw new IllegalStateException("AI client not ready. Call initialize() first.");
         }
         
-        public String getText() { return text; }
-        public Integer getInputTokens() { return inputTokens; }
-        public Integer getOutputTokens() { return outputTokens; }
-        public Integer getTotalTokens() { return totalTokens; }
-        public Double getEstimatedCost() { return estimatedCost; }
+        log.debug("Sending message with system prompt and tracking usage");
+        
+        try {
+            sg.edu.nus.iss.misoto.cli.ai.provider.AiResponse response = providerManager.sendMessage(systemPrompt, userMessage);
+            
+            if (response.isSuccess()) {
+                log.debug("Received response from AI provider with usage data");
+                return response;
+            } else {
+                throw new RuntimeException("AI provider error: " + response.getErrorMessage());
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to send message to AI provider: {}", e.getMessage());
+            
+            // Try fallback provider
+            if (providerManager.tryFallbackProvider()) {
+                log.info("Retrying with fallback provider");
+                try {
+                    sg.edu.nus.iss.misoto.cli.ai.provider.AiResponse response = providerManager.sendMessage(systemPrompt, userMessage);
+                    if (response.isSuccess()) {
+                        log.debug("Received response from fallback AI provider with usage data");
+                        return response;
+                    }
+                } catch (Exception fallbackException) {
+                    log.error("Fallback provider also failed: {}", fallbackException.getMessage());
+                }
+            }
+            
+            throw new RuntimeException("Failed to communicate with AI provider: " + e.getMessage(), e);
+        }
     }
 }

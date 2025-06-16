@@ -33,27 +33,34 @@ public class ConfigManager {
     /**
      * Configuration file paths to check in order of preference
      */
-    private final List<String> CONFIG_PATHS = List.of(
-        // Current directory
-        System.getProperty("user.dir") + File.separator + ".claude-code.json",
-        System.getProperty("user.dir") + File.separator + ".claude-code.yml",
-        System.getProperty("user.dir") + File.separator + ".claude-code.yaml",
+    private final List<String> CONFIG_PATHS;
+    
+    {
+        String userDir = System.getProperty("user.dir", ".");
+        String userHome = System.getProperty("user.home", System.getProperty("user.dir", "."));
         
-        // User home directory
-        System.getProperty("user.home") + File.separator + ".claude-code" + File.separator + "config.json",
-        System.getProperty("user.home") + File.separator + ".claude-code.json",
-        System.getProperty("user.home") + File.separator + ".claude-code" + File.separator + "config.yml",
-        
-        // Windows AppData
-        Optional.ofNullable(System.getenv("APPDATA"))
-            .map(appData -> appData + File.separator + "claude-code" + File.separator + "config.json")
-            .orElse(null),
+        CONFIG_PATHS = List.of(
+            // Current directory
+            userDir + File.separator + ".claude-code.json",
+            userDir + File.separator + ".claude-code.yml",
+            userDir + File.separator + ".claude-code.yaml",
             
-        // Linux/macOS config directory
-        Optional.ofNullable(System.getenv("XDG_CONFIG_HOME"))
-            .map(xdg -> xdg + File.separator + "claude-code" + File.separator + "config.json")
-            .orElse(System.getProperty("user.home") + File.separator + ".config" + File.separator + "claude-code" + File.separator + "config.json")
-    ).stream().filter(path -> path != null).toList();
+            // User home directory
+            userHome + File.separator + ".claude-code" + File.separator + "config.json",
+            userHome + File.separator + ".claude-code.json",
+            userHome + File.separator + ".claude-code" + File.separator + "config.yml",
+            
+            // Windows AppData
+            Optional.ofNullable(System.getenv("APPDATA"))
+                .map(appData -> appData + File.separator + "claude-code" + File.separator + "config.json")
+                .orElse(userHome + File.separator + "AppData" + File.separator + "Roaming" + File.separator + "claude-code" + File.separator + "config.json"),
+                
+            // Linux/macOS config directory
+            Optional.ofNullable(System.getenv("XDG_CONFIG_HOME"))
+                .map(xdg -> xdg + File.separator + "claude-code" + File.separator + "config.json")
+                .orElse(userHome + File.separator + ".config" + File.separator + "claude-code" + File.separator + "config.json")
+        );
+    }
       /**
      * Load configuration with CLI options
      */

@@ -128,12 +128,12 @@ public class StatusCommand implements Command {
         
         try {
             String modelName = aiClient.getModelName();
-            Double temperature = aiClient.getTemperature();
-            Integer maxTokens = aiClient.getMaxTokens();
+            String provider = aiClient.getCurrentProvider();
+            String modelInfo = aiClient.getModelInfo();
             
             System.out.println("  Model: " + FormattingUtil.formatWithColor(modelName, FormattingUtil.ANSI_CYAN));
-            System.out.println("  Temperature: " + FormattingUtil.formatWithColor(String.format("%.1f", temperature), FormattingUtil.ANSI_CYAN));
-            System.out.println("  Max Tokens: " + FormattingUtil.formatWithColor(String.valueOf(maxTokens), FormattingUtil.ANSI_CYAN));
+            System.out.println("  Provider: " + FormattingUtil.formatWithColor(provider, FormattingUtil.ANSI_CYAN));
+            System.out.println("  Info: " + FormattingUtil.formatWithColor(modelInfo, FormattingUtil.ANSI_CYAN));
             
             // Check if AI client is ready
             if (authManager.isAuthenticated() && aiClient.isReady()) {

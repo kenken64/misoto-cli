@@ -412,13 +412,22 @@ public class AgentStateManager {
      * Update statistics
      */
     public void updateStatistics(int completedTasks, int failedTasks, int pendingTasks) {
-        state.put("total_tasks_executed", String.valueOf(completedTasks));
+        // Don't overwrite total_tasks_executed with current queue count since 
+        // completed tasks are cleaned up from the queue immediately
         state.put("failed_tasks", String.valueOf(failedTasks));
         state.put("pending_tasks", String.valueOf(pendingTasks));
         
         // Increment cycle count
         int currentCycles = parseInt(state.get("cycle_count"));
         state.put("cycle_count", String.valueOf(currentCycles + 1));
+    }
+    
+    /**
+     * Increment total tasks executed counter
+     */
+    public void incrementTotalTasksExecuted() {
+        int currentTotal = parseInt(state.get("total_tasks_executed"));
+        state.put("total_tasks_executed", String.valueOf(currentTotal + 1));
     }
     
     // Helper methods

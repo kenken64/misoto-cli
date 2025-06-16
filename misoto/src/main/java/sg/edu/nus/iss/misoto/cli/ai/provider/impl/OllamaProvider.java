@@ -28,7 +28,7 @@ public class OllamaProvider implements AiProvider {
     
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
-    private String currentModel = "llama3.2";
+    private String currentModel = "qwen2.5:0.5b";
     private AiUsage lastUsage;
     private boolean initialized = false;
     private List<String> availableModels = new ArrayList<>();
@@ -76,7 +76,13 @@ public class OllamaProvider implements AiProvider {
             if (availableModels.contains(requestedModel)) {
                 setModel(requestedModel);
             } else {
-                log.warn("Requested model '{}' not available. Using default: {}", requestedModel, currentModel);
+                // If requested model not available, use first available model
+                if (!availableModels.isEmpty()) {
+                    currentModel = availableModels.get(0);
+                    log.warn("Requested model '{}' not available. Using default: {}", requestedModel, currentModel);
+                } else {
+                    log.error("No models available in Ollama!");
+                }
             }
         }
         
@@ -259,10 +265,7 @@ public class OllamaProvider implements AiProvider {
                     availableModels = new ArrayList<>();
                     for (JsonNode model : models) {
                         String modelName = model.get("name").asText();
-                        // Remove tag if present (e.g., "llama3.2:latest" -> "llama3.2")
-                        if (modelName.contains(":")) {
-                            modelName = modelName.split(":")[0];
-                        }
+                        // Keep the full model name with tags (e.g., "qwen2.5:0.5b")
                         if (!availableModels.contains(modelName)) {
                             availableModels.add(modelName);
                         }

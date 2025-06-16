@@ -11,6 +11,7 @@ import sg.edu.nus.iss.misoto.cli.agent.AgentService;
 import sg.edu.nus.iss.misoto.cli.agent.config.AgentConfiguration;
 import sg.edu.nus.iss.misoto.cli.agent.task.AgentTask;
 import sg.edu.nus.iss.misoto.cli.agent.task.TaskQueueService;
+import sg.edu.nus.iss.misoto.cli.agent.task.TaskQueueStats;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import lombok.extern.slf4j.Slf4j;
@@ -19,9 +20,11 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.time.Instant;
 
 /**
@@ -342,7 +345,7 @@ public class ChatCommand implements Command {
             long startTime = System.currentTimeMillis();
             
             // Get response from Claude with usage information
-            AiClient.AiResponse aiResponse = aiClient.sendMessageWithUsage(SYSTEM_PROMPT, conversationContext.toString());
+            sg.edu.nus.iss.misoto.cli.ai.provider.AiResponse aiResponse = aiClient.sendMessageWithUsage(SYSTEM_PROMPT, conversationContext.toString());
             
             long duration = System.currentTimeMillis() - startTime;
             
@@ -351,14 +354,16 @@ public class ChatCommand implements Command {
             
             // Update session tracking
             messageCount++;
-            if (aiResponse.getInputTokens() != null) {
-                sessionTotalInputTokens += aiResponse.getInputTokens();
-            }
-            if (aiResponse.getOutputTokens() != null) {
-                sessionTotalOutputTokens += aiResponse.getOutputTokens();
-            }
-            if (aiResponse.getEstimatedCost() != null) {
-                sessionTotalCost += aiResponse.getEstimatedCost();
+            if (aiResponse.getUsage() != null) {
+                if (aiResponse.getUsage().getInputTokens() != null) {
+                    sessionTotalInputTokens += aiResponse.getUsage().getInputTokens();
+                }
+                if (aiResponse.getUsage().getOutputTokens() != null) {
+                    sessionTotalOutputTokens += aiResponse.getUsage().getOutputTokens();
+                }
+                if (aiResponse.getUsage().getEstimatedCost() != null) {
+                    sessionTotalCost += aiResponse.getUsage().getEstimatedCost();
+                }
             }
             
             // Display Claude's response with clear formatting
@@ -372,12 +377,12 @@ public class ChatCommand implements Command {
             System.out.println(FormattingUtil.formatWithColor("⏱️ Response time: " + formattedDuration, FormattingUtil.ANSI_GRAY));
             
             // Display token usage and cost
-            if (aiResponse.getInputTokens() != null && aiResponse.getOutputTokens() != null) {
+            if (aiResponse.getUsage() != null && aiResponse.getUsage().getInputTokens() != null && aiResponse.getUsage().getOutputTokens() != null) {
                 String usageInfo = String.format("📊 Tokens: %d in + %d out = %d total", 
-                    aiResponse.getInputTokens(), aiResponse.getOutputTokens(), aiResponse.getTotalTokens());
+                    aiResponse.getUsage().getInputTokens(), aiResponse.getUsage().getOutputTokens(), aiResponse.getUsage().getTotalTokens());
                 System.out.println(FormattingUtil.formatWithColor(usageInfo, FormattingUtil.ANSI_BLUE));
-                  if (aiResponse.getEstimatedCost() != null) {
-                    String costInfo = String.format("💰 Estimated cost: $%.6f", aiResponse.getEstimatedCost());
+                if (aiResponse.getUsage().getEstimatedCost() != null) {
+                    String costInfo = String.format("💰 Estimated cost: $%.6f", aiResponse.getUsage().getEstimatedCost());
                     System.out.println(FormattingUtil.formatWithColor(costInfo, FormattingUtil.ANSI_PURPLE));
                 }
             }
@@ -482,14 +487,17 @@ public class ChatCommand implements Command {
         System.out.println("• Type 'stop' to stop the agent");
         System.out.println("• Type 'status' to see detailed agent status");
         System.out.println("• Type 'task <description>' to submit a task to the agent");
+        System.out.println("• Type 'tasks [status]' to list all tasks (optional filter: ALL, PENDING, COMPLETED, FAILED)");
         System.out.println("• Type 'mode <INTERACTIVE|AUTONOMOUS|SUPERVISED|MANUAL>' to change mode");
         System.out.println("• Type 'exit' or 'back' to return to chat");
-        System.out.println("• Press Enter to return to chat");
+        System.out.println("• Press Enter without typing anything to return to chat");
         
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+        BufferedReader agentReader = null;
+        try {
+            agentReader = new BufferedReader(new InputStreamReader(System.in));
             while (true) {
                 System.out.print(FormattingUtil.formatWithColor("\nAgent> ", FormattingUtil.ANSI_PURPLE + FormattingUtil.ANSI_BOLD));
-                String agentInput = reader.readLine();
+                String agentInput = agentReader.readLine();
                 
                 if (agentInput == null || agentInput.trim().isEmpty()) {
                     System.out.println(FormattingUtil.formatWithColor("\n↩️ Returning to chat mode...", FormattingUtil.ANSI_GRAY));
@@ -505,6 +513,9 @@ public class ChatCommand implements Command {
         } catch (IOException e) {
             log.error("Error reading agent command", e);
             System.err.println(FormattingUtil.formatWithColor("Error reading command", FormattingUtil.ANSI_RED));
+        } finally {
+            // Don't close the reader as it wraps System.in which is shared
+            agentReader = null;
         }
     }
       private boolean processAgentCommand(String command, List<ChatMessage> conversationHistory) {
@@ -554,6 +565,12 @@ public class ChatCommand implements Command {
                 }
                 break;
                 
+            case "tasks":
+            case "list":
+                String statusFilter = parts.length > 1 ? parts[1].toUpperCase() : "ALL";
+                displayTaskList(statusFilter);
+                break;
+                
             case "mode":
                 if (parts.length < 2) {
                     System.out.println(FormattingUtil.formatWithColor("\n❌ Please specify a mode: INTERACTIVE, AUTONOMOUS, SUPERVISED, or MANUAL", FormattingUtil.ANSI_RED));
@@ -564,10 +581,226 @@ public class ChatCommand implements Command {
                 
             default:
                 System.out.println(FormattingUtil.formatWithColor("\n❓ Unknown agent command: " + action, FormattingUtil.ANSI_RED));
-                System.out.println(FormattingUtil.formatWithColor("   Type 'exit' to return to chat or try: start, stop, status, task, mode", FormattingUtil.ANSI_GRAY));
+                System.out.println(FormattingUtil.formatWithColor("   Type 'exit' to return to chat or try: start, stop, status, task, tasks, mode", FormattingUtil.ANSI_GRAY));
                 break;
         }
         return true; // Continue in agent mode
+    }
+    
+    private void displayTaskList(String statusFilter) {
+        if (taskQueue == null) {
+            System.out.println(FormattingUtil.formatWithColor("\n❌ Task queue is not available", FormattingUtil.ANSI_RED));
+            return;
+        }
+        
+        try {
+            Collection<AgentTask> allTasks = taskQueue.getAllTasks();
+            
+            if (allTasks.isEmpty()) {
+                System.out.println(FormattingUtil.formatWithColor("\n📋 No tasks found", FormattingUtil.ANSI_GRAY));
+                return;
+            }
+            
+            // Filter tasks based on status
+            List<AgentTask> filteredTasks = allTasks.stream()
+                .filter(task -> {
+                    if ("ALL".equals(statusFilter)) {
+                        return true;
+                    } else if ("PENDING".equals(statusFilter)) {
+                        return task.getStatus() == AgentTask.TaskStatus.PENDING || 
+                               task.getStatus() == AgentTask.TaskStatus.QUEUED;
+                    } else if ("COMPLETED".equals(statusFilter)) {
+                        return task.getStatus() == AgentTask.TaskStatus.COMPLETED;
+                    } else if ("FAILED".equals(statusFilter)) {
+                        return task.getStatus() == AgentTask.TaskStatus.FAILED;
+                    } else if ("RUNNING".equals(statusFilter)) {
+                        return task.getStatus() == AgentTask.TaskStatus.RUNNING;
+                    } else {
+                        // Try to match exact status
+                        try {
+                            AgentTask.TaskStatus filterStatus = AgentTask.TaskStatus.valueOf(statusFilter);
+                            return task.getStatus() == filterStatus;
+                        } catch (IllegalArgumentException e) {
+                            return true; // Invalid filter, show all
+                        }
+                    }
+                })
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt())) // Most recent first
+                .collect(Collectors.toList());
+            
+            if (filteredTasks.isEmpty()) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    String.format("\n📋 No tasks found with status: %s", statusFilter), 
+                    FormattingUtil.ANSI_GRAY));
+                return;
+            }
+            
+            // Display header
+            System.out.println(FormattingUtil.formatWithColor(
+                String.format("\n📋 Task List (%s) - %d task(s)", statusFilter, filteredTasks.size()), 
+                FormattingUtil.ANSI_CYAN + FormattingUtil.ANSI_BOLD));
+            System.out.println(FormattingUtil.formatWithColor("─".repeat(80), FormattingUtil.ANSI_CYAN));
+            
+            // Display tasks
+            for (int i = 0; i < filteredTasks.size(); i++) {
+                AgentTask task = filteredTasks.get(i);
+                displayTaskSummary(task, i + 1);
+                
+                if (i < filteredTasks.size() - 1) {
+                    System.out.println(FormattingUtil.formatWithColor("  " + "─".repeat(76), FormattingUtil.ANSI_GRAY));
+                }
+            }
+            
+            // Display statistics
+            System.out.println(FormattingUtil.formatWithColor("\n📊 Task Statistics:", FormattingUtil.ANSI_BLUE));
+            TaskQueueStats stats = taskQueue.getStatistics();
+            System.out.println(String.format("  Total: %d | Pending: %d | Running: %d | Completed: %d | Failed: %d",
+                stats.getTotalTasks(),
+                stats.getPendingTasks(),
+                stats.getRunningTasks(),
+                stats.getCompletedTasks(),
+                stats.getFailedTasks()));
+            
+        } catch (Exception e) {
+            System.out.println(FormattingUtil.formatWithColor(
+                "\n❌ Error retrieving task list: " + e.getMessage(), 
+                FormattingUtil.ANSI_RED));
+            log.error("Error displaying task list", e);
+        }
+    }
+    
+    private void displayTaskSummary(AgentTask task, int index) {
+        // Status with color coding
+        String statusColor = getStatusColor(task.getStatus());
+        String statusText = String.format("[%s]", task.getStatus().name());
+        
+        // Priority with color coding
+        String priorityColor = getPriorityColor(task.getPriority());
+        String priorityText = task.getPriority().name();
+        
+        // Task header line
+        System.out.println(String.format("  %s%d.%s %s%s%s %s(%s)%s %s%s%s",
+            FormattingUtil.ANSI_WHITE + FormattingUtil.ANSI_BOLD,
+            index,
+            FormattingUtil.ANSI_RESET,
+            statusColor,
+            statusText,
+            FormattingUtil.ANSI_RESET,
+            priorityColor,
+            priorityText,
+            FormattingUtil.ANSI_RESET,
+            FormattingUtil.ANSI_CYAN,
+            task.getType().name(),
+            FormattingUtil.ANSI_RESET));
+        
+        // Task name and description
+        System.out.println(String.format("     %sName:%s %s", 
+            FormattingUtil.ANSI_BOLD, FormattingUtil.ANSI_RESET, 
+            task.getName() != null ? task.getName() : "Unnamed Task"));
+        
+        if (task.getDescription() != null && !task.getDescription().trim().isEmpty()) {
+            String description = task.getDescription().length() > 100 ? 
+                task.getDescription().substring(0, 97) + "..." : task.getDescription();
+            System.out.println(String.format("     %sDesc:%s %s", 
+                FormattingUtil.ANSI_BOLD, FormattingUtil.ANSI_RESET, description));
+        }
+        
+        // Task ID and timing
+        System.out.println(String.format("     %sID:%s %s | %sCreated:%s %s",
+            FormattingUtil.ANSI_GRAY, FormattingUtil.ANSI_RESET,
+            task.getId().substring(0, Math.min(8, task.getId().length())),
+            FormattingUtil.ANSI_GRAY, FormattingUtil.ANSI_RESET,
+            formatInstant(task.getCreatedAt())));
+        
+        // Additional timing info based on status
+        if (task.getStartedAt() != null) {
+            System.out.println(String.format("     %sStarted:%s %s",
+                FormattingUtil.ANSI_GRAY, FormattingUtil.ANSI_RESET,
+                formatInstant(task.getStartedAt())));
+        }
+        
+        if (task.getCompletedAt() != null) {
+            System.out.println(String.format("     %sCompleted:%s %s",
+                FormattingUtil.ANSI_GRAY, FormattingUtil.ANSI_RESET,
+                formatInstant(task.getCompletedAt())));
+        }
+        
+        // Error message for failed tasks
+        if (task.getStatus() == AgentTask.TaskStatus.FAILED && task.getErrorMessage() != null) {
+            String errorMsg = task.getErrorMessage().length() > 80 ? 
+                task.getErrorMessage().substring(0, 77) + "..." : task.getErrorMessage();
+            System.out.println(String.format("     %sError:%s %s%s%s",
+                FormattingUtil.ANSI_RED + FormattingUtil.ANSI_BOLD, FormattingUtil.ANSI_RESET,
+                FormattingUtil.ANSI_RED, errorMsg, FormattingUtil.ANSI_RESET));
+        }
+        
+        // Task result summary for completed tasks
+        if (task.getStatus() == AgentTask.TaskStatus.COMPLETED && task.getResult() != null) {
+            AgentTask.TaskResult result = task.getResult();
+            if (result.getOutput() != null && !result.getOutput().trim().isEmpty()) {
+                String output = result.getOutput().length() > 80 ? 
+                    result.getOutput().substring(0, 77) + "..." : result.getOutput();
+                // Replace newlines with spaces for summary display
+                output = output.replace("\n", " ").replace("\r", " ");
+                System.out.println(String.format("     %sOutput:%s %s%s%s",
+                    FormattingUtil.ANSI_GREEN + FormattingUtil.ANSI_BOLD, FormattingUtil.ANSI_RESET,
+                    FormattingUtil.ANSI_GREEN, output, FormattingUtil.ANSI_RESET));
+            }
+            
+            // Show files created/modified
+            if (result.getFilesCreated() != null && !result.getFilesCreated().isEmpty()) {
+                System.out.println(String.format("     %sFiles Created:%s %s",
+                    FormattingUtil.ANSI_BLUE, FormattingUtil.ANSI_RESET,
+                    String.join(", ", result.getFilesCreated())));
+            }
+            
+            if (result.getCommandsExecuted() != null && !result.getCommandsExecuted().isEmpty()) {
+                System.out.println(String.format("     %sCommands:%s %s",
+                    FormattingUtil.ANSI_PURPLE, FormattingUtil.ANSI_RESET,
+                    String.join(", ", result.getCommandsExecuted())));
+            }
+        }
+    }
+    
+    private String getStatusColor(AgentTask.TaskStatus status) {
+        return switch (status) {
+            case PENDING, QUEUED, WAITING_FOR_DEPENDENCIES -> FormattingUtil.ANSI_YELLOW;
+            case RUNNING -> FormattingUtil.ANSI_BLUE;
+            case COMPLETED -> FormattingUtil.ANSI_GREEN;
+            case FAILED, TIMEOUT -> FormattingUtil.ANSI_RED;
+            case CANCELLED -> FormattingUtil.ANSI_GRAY;
+            case PAUSED -> FormattingUtil.ANSI_PURPLE;
+            case WAITING_FOR_APPROVAL -> FormattingUtil.ANSI_CYAN;
+            default -> FormattingUtil.ANSI_WHITE;
+        };
+    }
+    
+    private String getPriorityColor(AgentTask.TaskPriority priority) {
+        return switch (priority) {
+            case CRITICAL -> FormattingUtil.ANSI_RED + FormattingUtil.ANSI_BOLD;
+            case HIGH -> FormattingUtil.ANSI_RED;
+            case MEDIUM -> FormattingUtil.ANSI_YELLOW;
+            case LOW -> FormattingUtil.ANSI_GREEN;
+            case BACKGROUND -> FormattingUtil.ANSI_GRAY;
+            default -> FormattingUtil.ANSI_WHITE;
+        };
+    }
+    
+    private String formatInstant(Instant instant) {
+        if (instant == null) return "N/A";
+        
+        // Calculate time difference
+        long diffSeconds = Instant.now().getEpochSecond() - instant.getEpochSecond();
+        
+        if (diffSeconds < 60) {
+            return diffSeconds + "s ago";
+        } else if (diffSeconds < 3600) {
+            return (diffSeconds / 60) + "m ago";
+        } else if (diffSeconds < 86400) {
+            return (diffSeconds / 3600) + "h ago";
+        } else {
+            return (diffSeconds / 86400) + "d ago";
+        }
     }
     
     private void displayAgentStatus() {
@@ -616,7 +849,8 @@ public class ChatCommand implements Command {
             parameters.put("task_description", taskDescription);
               AgentTask task = AgentTask.builder()
                 .id("chat-task-" + System.currentTimeMillis())
-                .type(AgentTask.TaskType.AI_ANALYSIS)
+                .name("Chat Task: " + taskDescription.substring(0, Math.min(50, taskDescription.length())))
+                .type(AgentTask.TaskType.CODE_GENERATION) // More appropriate for file creation tasks
                 .description(taskDescription)
                 .context(taskContext)
                 .parameters(parameters)
