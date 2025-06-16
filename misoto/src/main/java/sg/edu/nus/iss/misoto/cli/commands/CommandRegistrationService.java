@@ -35,6 +35,9 @@ public class CommandRegistrationService {
     
     @Autowired
     private ChatCommand chatCommand;
+    
+    @Autowired
+    private ProviderCommand providerCommand;
       /**
      * Register all commands after bean initialization
      */    @PostConstruct
@@ -45,7 +48,8 @@ public class CommandRegistrationService {
             explainCommand,
             mcpCommand,
             infoCommand,
-            chatCommand
+            chatCommand,
+            providerCommand
         );
         
         for (Command command : commands) {

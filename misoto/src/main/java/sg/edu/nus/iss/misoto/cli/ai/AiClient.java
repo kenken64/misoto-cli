@@ -1,21 +1,15 @@
 package sg.edu.nus.iss.misoto.cli.ai;
 
-import org.springframework.ai.anthropic.AnthropicChatModel;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import sg.edu.nus.iss.misoto.cli.ai.provider.*;
 import sg.edu.nus.iss.misoto.cli.auth.AuthManager;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 
 /**
- * Service for interacting with Claude AI
+ * Service for interacting with AI providers (backward compatibility wrapper)
  */
 @Service
 @Slf4j
@@ -24,17 +18,8 @@ public class AiClient {
     @Autowired
     private AuthManager authManager;
     
-    @Autowired(required = false)
-    private AnthropicChatModel anthropicChatModel;
-    
-    @Value("${spring.ai.anthropic.chat.model:claude-3-haiku-20240307}")
-    private String modelName;
-    
-    @Value("${spring.ai.anthropic.chat.temperature:0.7}")
-    private Double temperature;
-    
-    @Value("${spring.ai.anthropic.chat.max-tokens:8000}")
-    private Integer maxTokens;
+    @Autowired
+    private AiProviderManager providerManager;
     
     private boolean initialized = false;
     
@@ -50,54 +35,119 @@ public class AiClient {
             throw new IllegalStateException("Authentication required to initialize AI client");
         }
         
-        // The AnthropicChatModel should be auto-configured by Spring AI
-        // We'll use the token from AuthManager to set the API key
-        if (anthropicChatModel == null) {
-            throw new IllegalStateException("AnthropicChatModel not available. Check Spring AI configuration.");
+        if (!providerManager.isReady()) {
+            throw new IllegalStateException("AI Provider Manager not ready. Check provider configuration.");
         }
         
         initialized = true;
-        log.debug("AI client initialized");
+        log.debug("AI client initialized with provider: {}", providerManager.getCurrentProviderName());
     }
     
     /**
      * Check if the AI client is initialized and ready
      */
     public boolean isReady() {
-        return initialized && anthropicChatModel != null && authManager.isAuthenticated();
+        return initialized && providerManager.isReady() && authManager.isAuthenticated();
     }
     
     /**
-     * Send a message to Claude AI
+     * Send a message to current AI provider
      */
     public String sendMessage(String message) throws Exception {
         if (!isReady()) {
             throw new IllegalStateException("AI client not ready. Call initialize() first.");
         }
         
-        log.debug("Sending message to Claude AI: {}", message.substring(0, Math.min(100, message.length())));
+        log.debug("Sending message to AI provider: {}", message.substring(0, Math.min(100, message.length())));
         
         try {
-            // Create a user message and send to Claude
-            UserMessage userMessage = new UserMessage(message);
-            Prompt prompt = new Prompt(List.of(userMessage));
+            AiResponse response = providerManager.sendMessage(message);
             
-            ChatResponse result = anthropicChatModel.call(prompt);
-            String response = result.getResult().getOutput().getText();
-            
-            log.debug("Received response from Claude AI");
-            return response;
+            if (response.isSuccess()) {
+                log.debug("Received response from AI provider");
+                return response.getText();
+            } else {
+                throw new RuntimeException("AI provider error: " + response.getErrorMessage());
+            }
             
         } catch (Exception e) {
-            log.error("Failed to send message to Claude AI: {}", e.getMessage());
-            throw new RuntimeException("Failed to communicate with Claude AI: " + e.getMessage(), e);
+            log.error("Failed to send message to AI provider: {}", e.getMessage());
+            throw new RuntimeException("Failed to communicate with AI provider: " + e.getMessage(), e);
+        }
+    }
+      /**
+     * Send a message with system prompt
+     */
+    public String sendMessage(String systemPrompt, String userMessage) throws Exception {
+        if (!isReady()) {
+            throw new IllegalStateException("AI client not ready. Call initialize() first.");
+        }
+        
+        log.debug("Sending message with system prompt to AI provider");
+        
+        try {
+            AiResponse response = providerManager.sendMessage(systemPrompt, userMessage);
+            
+            if (response.isSuccess()) {
+                log.debug("Received response from AI provider");
+                return response.getText();
+            } else {
+                throw new RuntimeException("AI provider error: " + response.getErrorMessage());
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to send message to AI provider: {}", e.getMessage());
+            throw new RuntimeException("Failed to communicate with AI provider: " + e.getMessage(), e);
         }
     }
     
     /**
-     * Send a message with system prompt
+     * Send a message with conversation history
      */
-    public String sendMessage(String systemPrompt, String userMessage) throws Exception {
+    public String sendMessage(String systemPrompt, String userMessage, List<ChatMessage> history) throws Exception {
+        if (!isReady()) {
+            throw new IllegalStateException("AI client not ready. Call initialize() first.");
+        }
+        
+        log.debug("Sending message with history to AI provider");
+        
+        try {
+            AiResponse response = providerManager.sendMessage(systemPrompt, userMessage, history);
+            
+            if (response.isSuccess()) {
+                log.debug("Received response from AI provider");
+                return response.getText();
+            } else {
+                throw new RuntimeException("AI provider error: " + response.getErrorMessage());
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to send message to AI provider: {}", e.getMessage());
+            throw new RuntimeException("Failed to communicate with AI provider: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Get usage information from last AI response
+     */
+    public AiUsage getLastUsage() {
+        return providerManager.getLastUsage();
+    }
+    
+    /**
+     * Get current AI provider name
+     */
+    public String getCurrentProvider() {
+        return providerManager.getCurrentProviderName();
+    }
+    
+    /**
+     * Get current model name
+     */
+    public String getCurrentModel() {
+        AiProvider provider = providerManager.getCurrentProvider();
+        return provider != null ? provider.getCurrentModel() : "unknown";
+    }
         if (!isReady()) {
             throw new IllegalStateException("AI client not ready. Call initialize() first.");
         }
