@@ -23,7 +23,7 @@ import java.util.Map;
  */
 @Slf4j
 @ShellComponent
-@ConditionalOnProperty(name = "misoto.agent.mode.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "misoto.agent.mode.enabled", havingValue = "true", matchIfMissing = true)
 public class AgentCommands {
 
     private final AgentService agentService;
@@ -137,7 +137,7 @@ public class AgentCommands {
             @ShellOption(value = "--type", defaultValue = "SHELL") String type,
             @ShellOption(value = "--description", defaultValue = "Manual task") String description,
             @ShellOption(value = "--command", defaultValue = "") String command,
-            @ShellOption(value = "--priority", defaultValue = "NORMAL") String priority) {
+            @ShellOption(value = "--priority", defaultValue = "MEDIUM") String priority) {
         
         try {
             if (!agentService.isRunning()) {
@@ -161,6 +161,7 @@ public class AgentCommands {
                            .map(Enum::name).toArray(String[]::new));
             }
               AgentTask task = AgentTask.builder()
+                .name("CLI Task: " + description.substring(0, Math.min(50, description.length())))
                 .type(taskType)
                 .priority(taskPriority)
                 .description(description)
@@ -333,10 +334,11 @@ public class AgentCommands {
             - CUSTOM     : Custom task types
             
             Task Priorities:
+            - CRITICAL   : Immediate execution, highest priority
+            - HIGH       : High priority, executed before medium tasks
+            - MEDIUM     : Standard priority (default)
             - LOW        : Low priority, executed when resources available
-            - NORMAL     : Normal priority (default)
-            - HIGH       : High priority, executed before normal tasks
-            - CRITICAL   : Critical priority, executed immediately
+            - BACKGROUND : Lowest priority, background processing
             
             Examples:
             - agent-config --enable && agent-start

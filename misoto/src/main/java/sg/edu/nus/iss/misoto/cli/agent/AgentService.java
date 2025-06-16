@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ConditionalOnProperty(
     name = "misoto.agent.mode.enabled",
     havingValue = "true",
-    matchIfMissing = false
+    matchIfMissing = true
 )
 public class AgentService {
 

@@ -1,0 +1,4 @@
+/agent
+tasks ALL
+exit
+/exit

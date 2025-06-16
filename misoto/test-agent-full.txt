@@ -1,0 +1,6 @@
+/agent
+start
+status
+task create a simple python script that prints hello world
+tasks
+exit

@@ -1,0 +1,6 @@
+agent-start
+agent-task --type CODE_GENERATION --description "Create a simple hello world Python script" --priority MEDIUM
+agent-tasks
+agent-task --type FILE_WRITE --description "Create a test file" --command "echo 'Hello Agent' > test.txt" --priority HIGH
+agent-tasks --limit 5
+exit

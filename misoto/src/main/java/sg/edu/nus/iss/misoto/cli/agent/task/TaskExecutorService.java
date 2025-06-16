@@ -107,6 +107,10 @@ public class TaskExecutorService {
     // File Operations
     private AgentTask.TaskResult executeFileRead(AgentTask task) throws IOException {
         String filePath = (String) task.getParameters().get("file_path");
+        if (filePath == null || filePath.trim().isEmpty()) {
+            throw new IllegalArgumentException("file_path parameter is required and cannot be empty");
+        }
+        
         Path path = Paths.get(filePath);
         
         if (!Files.exists(path)) {
@@ -125,6 +129,13 @@ public class TaskExecutorService {
         String filePath = (String) task.getParameters().get("file_path");
         String content = (String) task.getParameters().get("content");
         boolean append = (Boolean) task.getParameters().getOrDefault("append", false);
+        
+        if (filePath == null || filePath.trim().isEmpty()) {
+            throw new IllegalArgumentException("file_path parameter is required and cannot be empty");
+        }
+        if (content == null) {
+            throw new IllegalArgumentException("content parameter is required and cannot be null");
+        }
         
         Path path = Paths.get(filePath);
         Files.createDirectories(path.getParent());
@@ -148,6 +159,13 @@ public class TaskExecutorService {
         String sourcePath = (String) task.getParameters().get("source_path");
         String targetPath = (String) task.getParameters().get("target_path");
         
+        if (sourcePath == null || sourcePath.trim().isEmpty()) {
+            throw new IllegalArgumentException("source_path parameter is required and cannot be empty");
+        }
+        if (targetPath == null || targetPath.trim().isEmpty()) {
+            throw new IllegalArgumentException("target_path parameter is required and cannot be empty");
+        }
+        
         Path source = Paths.get(sourcePath);
         Path target = Paths.get(targetPath);
         
@@ -163,6 +181,11 @@ public class TaskExecutorService {
     
     private AgentTask.TaskResult executeFileDelete(AgentTask task) throws IOException {
         String filePath = (String) task.getParameters().get("file_path");
+        
+        if (filePath == null || filePath.trim().isEmpty()) {
+            throw new IllegalArgumentException("file_path parameter is required and cannot be empty");
+        }
+        
         Path path = Paths.get(filePath);
         
         boolean deleted = Files.deleteIfExists(path);
@@ -177,6 +200,10 @@ public class TaskExecutorService {
         String directoryPath = (String) task.getParameters().get("directory_path");
         String pattern = (String) task.getParameters().getOrDefault("pattern", "*");
         boolean recursive = (Boolean) task.getParameters().getOrDefault("recursive", false);
+        
+        if (directoryPath == null || directoryPath.trim().isEmpty()) {
+            throw new IllegalArgumentException("directory_path parameter is required and cannot be empty");
+        }
         
         Path directory = Paths.get(directoryPath);
         List<String> files = new ArrayList<>();
@@ -198,10 +225,14 @@ public class TaskExecutorService {
             .artifacts(Map.of("file_count", files.size(), "files", files))
             .build();
     }
-      // Command Execution
+    // Command Execution
     private AgentTask.TaskResult executeShellCommand(AgentTask task) throws Exception {
         String command = (String) task.getParameters().get("command");
         String workingDir = (String) task.getParameters().get("working_directory");
+        
+        if (command == null || command.trim().isEmpty()) {
+            throw new IllegalArgumentException("command parameter is required and cannot be empty");
+        }
         
         ExecutionEnvironment.ExecutionOptions options = new ExecutionEnvironment.ExecutionOptions();
         if (workingDir != null) {
@@ -226,6 +257,10 @@ public class TaskExecutorService {
     private AgentTask.TaskResult executeScript(AgentTask task) throws Exception {
         String scriptContent = (String) task.getParameters().get("script_content");
         String scriptType = (String) task.getParameters().getOrDefault("script_type", "bash");
+        
+        if (scriptContent == null || scriptContent.trim().isEmpty()) {
+            throw new IllegalArgumentException("script_content parameter is required and cannot be empty");
+        }
         
         // Create temporary script file
         Path tempScript = Files.createTempFile("agent-script", "." + scriptType);
@@ -270,6 +305,10 @@ public class TaskExecutorService {
         String content = (String) task.getParameters().get("content");
         String analysisType = (String) task.getParameters().getOrDefault("analysis_type", "general");
         
+        if (content == null || content.trim().isEmpty()) {
+            throw new IllegalArgumentException("content parameter is required and cannot be empty");
+        }
+        
         String prompt = createAnalysisPrompt(analysisType, content);
         String response = aiClient.sendMessage(prompt);
         
@@ -283,6 +322,10 @@ public class TaskExecutorService {
         String taskDescription = (String) task.getParameters().get("task_description");
         String conversationContext = (String) task.getParameters().get("conversation_context");
         
+        if (taskDescription == null || taskDescription.trim().isEmpty()) {
+            throw new IllegalArgumentException("task_description parameter is required and cannot be empty");
+        }
+        
         // Analyze the task to extract requirements
         String analysisPrompt = "Analyze this task request and identify:\n" +
                 "1. Programming language needed\n" +
@@ -295,7 +338,12 @@ public class TaskExecutorService {
                 "FILENAME: <filename>\n" +
                 "DIRECTORIES: <comma-separated list or 'none'>\n" +
                 "CODE:\n<actual code>\n" +
-                "END_CODE";
+                "END_CODE\n\n" +
+                "Alternative: You can also use markdown code blocks like:\n" +
+                "LANGUAGE: <language>\n" +
+                "FILENAME: <filename>\n" +
+                "DIRECTORIES: <comma-separated list or 'none'>\n" +
+                "```<language>\n<actual code>\n```";
         
         String analysisResponse = aiClient.sendMessage(analysisPrompt);
         
@@ -342,11 +390,49 @@ public class TaskExecutorService {
             String runOutput = "";
             if (language.toLowerCase().contains("python") && filename.endsWith(".py")) {
                 try {
-                    ExecutionEnvironment.ExecutionResult result = executionEnvironment.executeCommand("python " + filename);
-                    runOutput = "\n\nScript execution result:\n" + result.getOutput();
-                    commandsExecuted.add("python " + filename);
+                    // Try different Python commands (python3, python, py)
+                    String[] pythonCommands = {"python3", "python", "py"};
+                    ExecutionEnvironment.ExecutionResult result = null;
+                    String usedCommand = null;
+                    
+                    for (String cmd : pythonCommands) {
+                        try {
+                            // First test if the command exists
+                            ExecutionEnvironment.ExecutionOptions testOptions = new ExecutionEnvironment.ExecutionOptions();
+                            testOptions.setTimeout(5000L); // 5 second timeout for test
+                            ExecutionEnvironment.ExecutionResult testResult = executionEnvironment.executeCommand(cmd + " --version", testOptions);
+                            
+                            if (testResult.getExitCode() == 0) {
+                                // Python command works, now run the script
+                                ExecutionEnvironment.ExecutionOptions runOptions = new ExecutionEnvironment.ExecutionOptions();
+                                runOptions.setTimeout(30000L); // 30 second timeout for script execution
+                                runOptions.setCwd(System.getProperty("user.dir")); // Set working directory
+                                result = executionEnvironment.executeCommand(cmd + " " + filename, runOptions);
+                                usedCommand = cmd;
+                                break;
+                            }
+                        } catch (Exception e) {
+                            log.debug("Python command '{}' failed: {}", cmd, e.getMessage());
+                            // Continue to next command
+                        }
+                    }
+                    
+                    if (result != null && usedCommand != null) {
+                        runOutput = "\n\nScript execution result (using " + usedCommand + "):\n" + result.getOutput();
+                        commandsExecuted.add(usedCommand + " " + filename);
+                        
+                        // If there was an error, include it
+                        if (result.getExitCode() != 0) {
+                            runOutput += "\nExit code: " + result.getExitCode();
+                        }
+                    } else {
+                        runOutput = "\n\nPython script execution skipped: No Python interpreter found in PATH.\n" +
+                                  "Please install Python or ensure it's in your system PATH.\n" +
+                                  "You can run the script manually with: python " + filename;
+                    }
                 } catch (Exception e) {
-                    runOutput = "\n\nScript execution failed: " + e.getMessage();
+                    runOutput = "\n\nScript execution failed: " + e.getMessage() + 
+                              "\nYou can run the script manually with: python " + filename;
                 }
             } else if (language.toLowerCase().contains("lua") && filename.endsWith(".lua")) {
                 try {
@@ -360,6 +446,23 @@ public class TaskExecutorService {
                        (filename.endsWith(".yml") || filename.endsWith(".yaml"))) {
                 runOutput = "\n\nYAML file created successfully. Use 'cat " + filename + "' to view contents.";
                 commandsExecuted.add("Generated YAML configuration file");
+            } else if ((language.toLowerCase().contains("terraform") || language.toLowerCase().contains("tf")) && 
+                       filename.endsWith(".tf")) {
+                runOutput = "\n\nTerraform file created successfully. Use 'terraform validate' to check syntax.";
+                commandsExecuted.add("Generated Terraform configuration file");
+            } else if ((language.toLowerCase().contains("jinja") || language.toLowerCase().contains("j2")) && 
+                       filename.endsWith(".j2")) {
+                runOutput = "\n\nJinja2 template file created successfully. Use with your template engine.";
+                commandsExecuted.add("Generated Jinja2 template file");
+            } else if (language.toLowerCase().contains("tftpl") && filename.endsWith(".tftpl")) {
+                runOutput = "\n\nTerraform template file created successfully. Use with templatefile() function.";
+                commandsExecuted.add("Generated Terraform template file");
+            } else if (language.toLowerCase().contains("bash") && filename.endsWith(".sh")) {
+                runOutput = "\n\nBash script created successfully. Make executable with: chmod +x " + filename;
+                commandsExecuted.add("Generated Bash script file");
+            } else if (language.toLowerCase().contains("json") && filename.endsWith(".json")) {
+                runOutput = "\n\nJSON file created successfully. Use 'cat " + filename + "' to view contents.";
+                commandsExecuted.add("Generated JSON configuration file");
             }
             
             String fullOutput = "Successfully generated " + language + " code!\n\n" +
@@ -395,6 +498,13 @@ public class TaskExecutorService {
         String question = (String) task.getParameters().get("question");
         List<String> options = (List<String>) task.getParameters().getOrDefault("options", List.of());
         
+        if (context == null || context.trim().isEmpty()) {
+            throw new IllegalArgumentException("context parameter is required and cannot be empty");
+        }
+        if (question == null || question.trim().isEmpty()) {
+            throw new IllegalArgumentException("question parameter is required and cannot be empty");
+        }
+        
         String decision = decisionEngine.makeDecision(context, question, options);
         
         return AgentTask.TaskResult.builder()
@@ -406,6 +516,13 @@ public class TaskExecutorService {
     private AgentTask.TaskResult executeTextProcessing(AgentTask task) throws Exception {
         String text = (String) task.getParameters().get("text");
         String operation = (String) task.getParameters().get("operation");
+        
+        if (text == null || text.trim().isEmpty()) {
+            throw new IllegalArgumentException("text parameter is required and cannot be empty");
+        }
+        if (operation == null || operation.trim().isEmpty()) {
+            throw new IllegalArgumentException("operation parameter is required and cannot be empty");
+        }
         
         String prompt = "Perform " + operation + " on this text:\n" + text;
         String response = aiClient.sendMessage(prompt);
@@ -419,6 +536,10 @@ public class TaskExecutorService {
     private AgentTask.TaskResult executeMcpToolCall(AgentTask task) throws Exception {
         String toolName = (String) task.getParameters().get("tool_name");
         Map<String, Object> arguments = (Map<String, Object>) task.getParameters().getOrDefault("arguments", Map.of());
+        
+        if (toolName == null || toolName.trim().isEmpty()) {
+            throw new IllegalArgumentException("tool_name parameter is required and cannot be empty");
+        }
         
         McpToolResult result = mcpServerManager.callTool(toolName, arguments);
         
@@ -507,6 +628,10 @@ public class TaskExecutorService {
     private AgentTask.TaskResult executeLogAnalysis(AgentTask task) throws Exception {
         String logFile = (String) task.getParameters().get("log_file");
         String pattern = (String) task.getParameters().getOrDefault("pattern", "ERROR");
+        
+        if (logFile == null || logFile.trim().isEmpty()) {
+            throw new IllegalArgumentException("log_file parameter is required and cannot be empty");
+        }
         
         if (logFile != null && Files.exists(Paths.get(logFile))) {
             String content = Files.readString(Paths.get(logFile));
@@ -597,23 +722,48 @@ public class TaskExecutorService {
         String[] lines = response.split("\n");
         StringBuilder codeBuilder = new StringBuilder();
         boolean inCodeSection = false;
+        boolean inMarkdownCodeBlock = false;
+        String detectedLanguage = null;
         
         for (String line : lines) {
-            line = line.trim();
+            String trimmedLine = line.trim();
             
-            if (line.startsWith("LANGUAGE:")) {
-                result.put("LANGUAGE", line.substring("LANGUAGE:".length()).trim().toLowerCase());
-            } else if (line.startsWith("FILENAME:")) {
-                result.put("FILENAME", line.substring("FILENAME:".length()).trim());
-            } else if (line.startsWith("DIRECTORIES:")) {
-                result.put("DIRECTORIES", line.substring("DIRECTORIES:".length()).trim());
-            } else if (line.equals("CODE:")) {
+            // Handle structured format (CODE: ... END_CODE)
+            if (trimmedLine.startsWith("LANGUAGE:")) {
+                result.put("LANGUAGE", trimmedLine.substring("LANGUAGE:".length()).trim().toLowerCase());
+            } else if (trimmedLine.startsWith("FILENAME:")) {
+                result.put("FILENAME", trimmedLine.substring("FILENAME:".length()).trim());
+            } else if (trimmedLine.startsWith("DIRECTORIES:")) {
+                result.put("DIRECTORIES", trimmedLine.substring("DIRECTORIES:".length()).trim());
+            } else if (trimmedLine.equals("CODE:")) {
                 inCodeSection = true;
-            } else if (line.equals("END_CODE")) {
+            } else if (trimmedLine.equals("END_CODE")) {
                 inCodeSection = false;
-            } else if (inCodeSection) {
+            } 
+            // Handle markdown code blocks (```language ... ```)
+            else if (trimmedLine.startsWith("```")) {
+                if (!inMarkdownCodeBlock) {
+                    // Starting a code block
+                    inMarkdownCodeBlock = true;
+                    // Extract language from the opening tag
+                    String languageTag = trimmedLine.substring(3).trim().toLowerCase();
+                    if (!languageTag.isEmpty()) {
+                        detectedLanguage = languageTag;
+                        result.put("LANGUAGE", languageTag);
+                    }
+                } else {
+                    // Ending a code block
+                    inMarkdownCodeBlock = false;
+                }
+            } else if (inCodeSection || inMarkdownCodeBlock) {
+                // Preserve original line formatting for code content
                 codeBuilder.append(line).append("\n");
             }
+        }
+        
+        // If no explicit language was set but we detected one from markdown, use it
+        if (!result.containsKey("LANGUAGE") && detectedLanguage != null) {
+            result.put("LANGUAGE", detectedLanguage);
         }
         
         result.put("CODE", codeBuilder.toString().trim());
@@ -642,6 +792,17 @@ public class TaskExecutorService {
             case "yaml", "yml" -> "yml";
             case "bash", "shell" -> "sh";
             case "powershell" -> "ps1";
+            case "terraform", "tf" -> "tf";
+            case "jinja", "jinja2", "j2" -> "j2";
+            case "tftpl", "terraform-template" -> "tftpl";
+            case "hcl" -> "hcl";
+            case "json" -> "json";
+            case "xml" -> "xml";
+            case "html" -> "html";
+            case "css" -> "css";
+            case "scss", "sass" -> "scss";
+            case "sql" -> "sql";
+            case "dockerfile", "docker" -> "dockerfile";
             default -> "txt";
         };
     }

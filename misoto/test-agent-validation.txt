@@ -1,0 +1,6 @@
+/agent status
+/agent submit task Create a simple Python hello world script
+/agent queue
+/agent submit task file_write:hello_validation_test.txt:Hello from parameter validation test!
+/agent queue
+exit

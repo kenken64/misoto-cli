@@ -122,6 +122,9 @@ public class ChatCommand implements Command {
             throw new UserError("Failed to start chat session: " + e.getMessage());
         }
     }    private void startChatSession(String initialMessage) throws IOException {
+        // Clear screen before starting chat
+        clearScreen();
+        
         List<ChatMessage> conversationHistory = new ArrayList<>();
         BufferedReader reader = null;
         
@@ -150,6 +153,7 @@ public class ChatCommand implements Command {
                     String userInput = reader.readLine();
                       // Check for null input (Ctrl+C or EOF)
                     if (userInput == null) {
+                        performCleanup(); // Perform cleanup before exit
                         displaySessionSummary();
                         System.out.println("\n" + FormattingUtil.formatWithColor("Chat session ended.", FormattingUtil.ANSI_YELLOW));
                         break;
@@ -195,6 +199,8 @@ public class ChatCommand implements Command {
         } finally {
             // Don't close System.in as it's shared across the application
             reader = null;
+            // Perform cleanup operations
+            performCleanup();
         }
     }
     
@@ -226,6 +232,7 @@ public class ChatCommand implements Command {
         switch (cmd) {            case "/exit":
             case "/quit":
                 System.out.println(FormattingUtil.formatWithColor("\n👋 Thanks for chatting! Goodbye!", FormattingUtil.ANSI_GREEN));
+                performCleanup(); // Perform immediate cleanup
                 return true;
                 
             case "/help":
@@ -435,6 +442,37 @@ public class ChatCommand implements Command {
             }
         }
     }
+    
+    /**
+     * Perform cleanup operations when chat session ends
+     */
+    private void performCleanup() {
+        try {
+            // Clear any temporary resources
+            log.debug("Performing chat session cleanup");
+            
+            // If agent service is available, perform any necessary cleanup
+            if (agentService != null) {
+                // No specific cleanup needed for agent service in chat mode
+                log.debug("Agent service cleanup check completed");
+            }
+            
+            // If AI client needs cleanup
+            if (aiClient != null) {
+                // AI client cleanup is handled by the client itself
+                log.debug("AI client cleanup check completed");
+            }
+            
+            // Force garbage collection to help with memory cleanup
+            System.gc();
+            
+            log.debug("Chat session cleanup completed successfully");
+            
+        } catch (Exception e) {
+            log.warn("Error during chat session cleanup: {}", e.getMessage());
+            // Don't throw exception during cleanup to avoid blocking exit
+        }
+    }
 
     /**
      * Simple chat message container
@@ -595,6 +633,17 @@ public class ChatCommand implements Command {
         
         try {
             Collection<AgentTask> allTasks = taskQueue.getAllTasks();
+            
+            // Debug: Show all task statuses
+            System.out.println(FormattingUtil.formatWithColor(
+                "\n🔍 Debug: All tasks in system (" + allTasks.size() + " total):", 
+                FormattingUtil.ANSI_BLUE));
+            for (AgentTask task : allTasks) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "  • " + task.getId().substring(0, Math.min(8, task.getId().length())) + 
+                    " [" + task.getStatus() + "] " + task.getType(), 
+                    FormattingUtil.ANSI_GRAY));
+            }
             
             if (allTasks.isEmpty()) {
                 System.out.println(FormattingUtil.formatWithColor("\n📋 No tasks found", FormattingUtil.ANSI_GRAY));
@@ -834,6 +883,40 @@ public class ChatCommand implements Command {
     }
       private void submitAgentTask(String taskDescription, List<ChatMessage> conversationHistory) {
         try {
+            // Check if agent service is available
+            if (agentService == null) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "\n❌ Agent service is not available. Make sure agent mode is enabled in configuration.", 
+                    FormattingUtil.ANSI_RED));
+                return;
+            }
+            
+            if (taskQueue == null) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "\n❌ Task queue service is not available. Make sure agent mode is enabled in configuration.", 
+                    FormattingUtil.ANSI_RED));
+                return;
+            }
+            
+            // Check if agent is running, if not, start it
+            if (!agentService.isRunning()) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "\n🚀 Agent is not running. Starting agent...", 
+                    FormattingUtil.ANSI_YELLOW));
+                try {
+                    agentService.startAgent();
+                    System.out.println(FormattingUtil.formatWithColor(
+                        "✓ Agent started successfully", 
+                        FormattingUtil.ANSI_GREEN));
+                    // Give agent a moment to initialize
+                    Thread.sleep(2000);
+                } catch (Exception e) {
+                    System.out.println(FormattingUtil.formatWithColor(
+                        "\n❌ Failed to start agent: " + e.getMessage(), 
+                        FormattingUtil.ANSI_RED));
+                    return;
+                }
+            }
             // Create an agent task based on the current conversation context
             String contextString = buildConversationContext(conversationHistory, 5); // Last 5 messages
             
@@ -866,6 +949,9 @@ public class ChatCommand implements Command {
             System.out.println(FormattingUtil.formatWithColor(
                 String.format("Task ID: %s", task.getId()), 
                 FormattingUtil.ANSI_GRAY));
+            
+            // Wait for task completion and display results
+            waitForTaskCompletionAndDisplayResults(task.getId());
                 
         } catch (Exception e) {
             System.out.println(FormattingUtil.formatWithColor(
@@ -909,5 +995,218 @@ public class ChatCommand implements Command {
         }
         
         return context.toString();
+    }
+    
+    /**
+     * Wait for task completion and display verbose results
+     */
+    private void waitForTaskCompletionAndDisplayResults(String taskId) {
+        if (taskQueue == null) {
+            System.out.println(FormattingUtil.formatWithColor(
+                "\n❌ Cannot monitor task: Task queue service is not available", 
+                FormattingUtil.ANSI_RED));
+            return;
+        }
+        
+        System.out.println(FormattingUtil.formatWithColor(
+            "\n⏳ Waiting for task completion...", 
+            FormattingUtil.ANSI_YELLOW));
+        
+        try {
+            AgentTask task = null;
+            int attempts = 0;
+            int maxAttempts = 60; // Wait up to 60 seconds
+            
+            // First check if task exists at all
+            task = taskQueue.getTask(taskId);
+            if (task == null) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "\n❌ Task not found immediately: " + taskId, 
+                    FormattingUtil.ANSI_RED));
+                System.out.println(FormattingUtil.formatWithColor(
+                    "Checking all tasks in queue for debugging...", 
+                    FormattingUtil.ANSI_GRAY));
+                
+                // Debug: List all tasks in queue
+                var allTasks = taskQueue.getAllTasks();
+                System.out.println(FormattingUtil.formatWithColor(
+                    "Total tasks in queue: " + allTasks.size(), 
+                    FormattingUtil.ANSI_GRAY));
+                for (AgentTask t : allTasks) {
+                    System.out.println(FormattingUtil.formatWithColor(
+                        "  Task: " + t.getId() + " Status: " + t.getStatus() + " Type: " + t.getType(), 
+                        FormattingUtil.ANSI_GRAY));
+                }
+                return;
+            }
+            
+            System.out.println(FormattingUtil.formatWithColor(
+                "✓ Task found. Initial status: " + task.getStatus(), 
+                FormattingUtil.ANSI_BLUE));
+            
+            while (attempts < maxAttempts) {
+                Thread.sleep(1000); // Wait 1 second between checks
+                task = taskQueue.getTask(taskId);
+                
+                if (task != null) {
+                    // Debug: Show current status every 10 attempts
+                    if (attempts % 10 == 0) {
+                        System.out.println(FormattingUtil.formatWithColor(
+                            "\n🔍 Task status update: " + task.getStatus() + 
+                            " (attempt " + attempts + "/" + maxAttempts + ")", 
+                            FormattingUtil.ANSI_BLUE));
+                    }
+                    
+                    if (task.isCompleted()) {
+                        System.out.println(FormattingUtil.formatWithColor(
+                            "\n✓ Task completed after " + attempts + " seconds with status: " + task.getStatus(), 
+                            FormattingUtil.ANSI_GREEN));
+                        break;
+                    }
+                }
+                
+                // Show progress indicator
+                if (attempts % 5 == 0 && attempts > 0) {
+                    System.out.print(".");
+                }
+                
+                attempts++;
+            }
+            
+            if (task == null) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "\n❌ Task disappeared during monitoring: " + taskId, 
+                    FormattingUtil.ANSI_RED));
+                return;
+            }
+            
+            if (!task.isCompleted()) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "\n⏱️ Task is still running after " + maxAttempts + " seconds", 
+                    FormattingUtil.ANSI_YELLOW));
+                return;
+            }
+            
+            // Display task results
+            displayTaskResults(task);
+            
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.out.println(FormattingUtil.formatWithColor(
+                "\n❌ Task monitoring interrupted", 
+                FormattingUtil.ANSI_RED));
+        } catch (Exception e) {
+            System.out.println(FormattingUtil.formatWithColor(
+                "\n❌ Error monitoring task: " + e.getMessage(), 
+                FormattingUtil.ANSI_RED));
+        }
+    }
+    
+    /**
+     * Display detailed task execution results
+     */
+    private void displayTaskResults(AgentTask task) {
+        System.out.println(); // Add spacing
+        
+        if (task.getStatus() == AgentTask.TaskStatus.COMPLETED) {
+            System.out.println(FormattingUtil.formatWithColor(
+                "✅ Task completed successfully!", 
+                FormattingUtil.ANSI_GREEN));
+        } else if (task.getStatus() == AgentTask.TaskStatus.FAILED) {
+            System.out.println(FormattingUtil.formatWithColor(
+                "❌ Task failed!", 
+                FormattingUtil.ANSI_RED));
+            if (task.getErrorMessage() != null) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "Error: " + task.getErrorMessage(), 
+                    FormattingUtil.ANSI_RED));
+            }
+        }
+        
+        // Display task result if available
+        AgentTask.TaskResult result = task.getResult();
+        if (result != null) {
+            // Display main output
+            if (result.getOutput() != null && !result.getOutput().trim().isEmpty()) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "\n📄 Task Output:", 
+                    FormattingUtil.ANSI_CYAN));
+                System.out.println(FormattingUtil.formatWithColor(
+                    "─".repeat(50), 
+                    FormattingUtil.ANSI_GRAY));
+                System.out.println(result.getOutput());
+                System.out.println(FormattingUtil.formatWithColor(
+                    "─".repeat(50), 
+                    FormattingUtil.ANSI_GRAY));
+            }
+            
+            // Display files created
+            if (result.getFilesCreated() != null && !result.getFilesCreated().isEmpty()) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "\n📁 Files Created:", 
+                    FormattingUtil.ANSI_GREEN));
+                for (String file : result.getFilesCreated()) {
+                    System.out.println(FormattingUtil.formatWithColor(
+                        "  • " + file, 
+                        FormattingUtil.ANSI_GREEN));
+                }
+            }
+            
+            // Display commands executed
+            if (result.getCommandsExecuted() != null && !result.getCommandsExecuted().isEmpty()) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "\n⚡ Commands Executed:", 
+                    FormattingUtil.ANSI_BLUE));
+                for (String command : result.getCommandsExecuted()) {
+                    System.out.println(FormattingUtil.formatWithColor(
+                        "  • " + command, 
+                        FormattingUtil.ANSI_BLUE));
+                }
+            }
+            
+            // Display exit code if available
+            if (result.getExitCode() != null) {
+                String exitCodeColor = result.getExitCode() == 0 ? FormattingUtil.ANSI_GREEN : FormattingUtil.ANSI_RED;
+                System.out.println(FormattingUtil.formatWithColor(
+                    "\n🔢 Exit Code: " + result.getExitCode(), 
+                    exitCodeColor));
+            }
+            
+            // Display execution time if available
+            if (result.getExecutionTimeMs() > 0) {
+                System.out.println(FormattingUtil.formatWithColor(
+                    "⏱️  Execution Time: " + result.getExecutionTimeMs() + "ms", 
+                    FormattingUtil.ANSI_GRAY));
+            }
+        }
+        
+        System.out.println(); // Add spacing after results
+    }
+    
+    /**
+     * Clear the terminal screen
+     */
+    private void clearScreen() {
+        try {
+            // Clear screen using ANSI escape codes
+            System.out.print("\033[2J\033[H");
+            System.out.flush();
+            
+            // Alternative approach for Windows compatibility
+            final String os = System.getProperty("os.name");
+            if (os.contains("Windows")) {
+                // For Windows systems, also try using cls command
+                try {
+                    new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
+                } catch (Exception e) {
+                    // Fall back to ANSI codes only
+                }
+            }
+        } catch (Exception e) {
+            // If clearing fails, just add some newlines for spacing
+            for (int i = 0; i < 50; i++) {
+                System.out.println();
+            }
+        }
     }
 }

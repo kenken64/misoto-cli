@@ -2,6 +2,7 @@ package sg.edu.nus.iss.misoto.cli.mcp.manager;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import sg.edu.nus.iss.misoto.cli.mcp.client.McpClient;
 import sg.edu.nus.iss.misoto.cli.mcp.config.McpConfigurationService;
@@ -23,7 +24,11 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class McpServerManager {
-      @Autowired
+    
+    @Value("${misoto.mcp.auto-initialize:true}")
+    private boolean autoInitialize;
+      
+    @Autowired
     private McpConfigurationService mcpConfigurationService;
     
     // Map of server ID to MCP client
@@ -38,7 +43,11 @@ public class McpServerManager {
     @PostConstruct
     public void initialize() {
         log.info("Initializing MCP Server Manager");
-        initializeServers();
+        if (autoInitialize) {
+            initializeServers();
+        } else {
+            log.info("MCP server auto-initialization disabled");
+        }
     }
     
     @PreDestroy

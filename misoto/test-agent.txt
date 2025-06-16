@@ -1,0 +1,6 @@
+/agent help
+agent start
+agent status
+agent task --type SHELL --command "echo 'Hello from agent'"
+agent tasks
+/exit

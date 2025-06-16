@@ -433,20 +433,26 @@ public class TaskQueueService {
      * Cleanup completed tasks
      */
     public void cleanupCompletedTasks() {
-        List<String> completedTaskIds = new ArrayList<>();
+        // Only clean up completed/failed tasks older than 30 minutes to allow users to see recent results
+        long thirtyMinutesAgo = Instant.now().minusSeconds(30 * 60).getEpochSecond();
+        List<String> oldCompletedTaskIds = new ArrayList<>();
         
         for (AgentTask task : tasks.values()) {
-            if (task.getStatus() == AgentTask.TaskStatus.COMPLETED || 
-                task.getStatus() == AgentTask.TaskStatus.FAILED) {
-                completedTaskIds.add(task.getId());
+            if ((task.getStatus() == AgentTask.TaskStatus.COMPLETED || 
+                 task.getStatus() == AgentTask.TaskStatus.FAILED) &&
+                task.getCompletedAt() != null &&
+                task.getCompletedAt().getEpochSecond() < thirtyMinutesAgo) {
+                oldCompletedTaskIds.add(task.getId());
             }
         }
         
-        for (String taskId : completedTaskIds) {
+        for (String taskId : oldCompletedTaskIds) {
             tasks.remove(taskId);
         }
         
-        log.debug("Cleaned up {} completed tasks", completedTaskIds.size());
+        if (!oldCompletedTaskIds.isEmpty()) {
+            log.debug("Cleaned up {} old completed tasks (older than 30 minutes)", oldCompletedTaskIds.size());
+        }
     }
     
     /**

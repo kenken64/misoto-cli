@@ -1,0 +1,41 @@
+{
+  "test_timestamp": 1750062868.1823502,
+  "test_tasks": [
+    {
+      "name": "test-simple-python-generation",
+      "type": "CODE_GENERATION",
+      "description": "Generate a simple Python hello world script",
+      "parameters": {
+        "task_description": "Create a simple Python script that prints 'Hello, World!' and the current date",
+        "conversation_context": "User wants to test the code generation capability"
+      },
+      "priority": "HIGH"
+    },
+    {
+      "name": "test-system-monitoring",
+      "type": "SYSTEM_MONITORING",
+      "description": "Test system monitoring task",
+      "parameters": {
+        "metric": "memory_usage"
+      },
+      "priority": "NORMAL"
+    },
+    {
+      "name": "test-file-creation",
+      "type": "FILE_WRITE",
+      "description": "Create test file",
+      "parameters": {
+        "file_path": "test-agent-output.txt",
+        "content": "This file was created by the agent task system.\nTimestamp: 1750062868.182293"
+      },
+      "priority": "LOW"
+    }
+  ],
+  "instructions": "Manual testing required - use agent commands to submit tasks",
+  "expected_outputs": [
+    "Python script file created",
+    "test-agent-output.txt created",
+    "System monitoring metrics returned",
+    "Agent logs show successful task execution"
+  ]
+}

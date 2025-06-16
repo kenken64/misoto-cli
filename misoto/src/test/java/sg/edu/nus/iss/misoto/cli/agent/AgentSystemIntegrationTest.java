@@ -240,6 +240,7 @@ public class AgentSystemIntegrationTest {
             .type(AgentTask.TaskType.SHELL_COMMAND)
             .priority(AgentTask.TaskPriority.MEDIUM)
             .description("Test task 1")
+            .parameters(Map.of("command", "echo 'Test command execution'"))
             .createdAt(Instant.now())
             .build();
             
@@ -248,6 +249,7 @@ public class AgentSystemIntegrationTest {
             .type(AgentTask.TaskType.AI_ANALYSIS)
             .priority(AgentTask.TaskPriority.HIGH)
             .description("Test task 2")
+            .parameters(Map.of("content", "Test content for AI analysis", "analysis_type", "general"))
             .createdAt(Instant.now())
             .build();
         

@@ -1,0 +1,4 @@
+agent-status
+agent-task CODE_GENERATION "Create a simple hello world Python script"
+agent-tasks
+exit

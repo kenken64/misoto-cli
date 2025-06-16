@@ -1,7 +1,9 @@
 package sg.edu.nus.iss.misoto.cli;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import sg.edu.nus.iss.misoto.cli.commands.CommandRegistry;
 import sg.edu.nus.iss.misoto.cli.commands.CommandExecutor;
@@ -27,8 +29,15 @@ import java.util.Map;
  */
 @Component
 @Slf4j
-public class ClaudeCli implements CommandLineRunner {    // Application version - could be read from properties file
-    private static final String VERSION = "1.0.0";@Autowired
+public class ClaudeCli implements CommandLineRunner {
+    
+    // Application version - could be read from properties file
+    private static final String VERSION = "1.0.0";
+    
+    @Autowired
+    private Environment environment;
+    
+    @Autowired
     private CommandRegistry commandRegistry;
     
     @Autowired
@@ -42,11 +51,19 @@ public class ClaudeCli implements CommandLineRunner {    // Application version 
     
     @Autowired
     private ConfigManager configManager;
-      @Autowired
+    @Autowired
     private ErrorFormatter errorFormatter;
-      @Autowired
-    private TelemetryService telemetryService;@Override
+    
+    @Autowired
+    private TelemetryService telemetryService;
+    
+    @Override
     public void run(String... args) throws Exception {
+        // Skip CLI execution during tests
+        if (isTestProfile()) {
+            log.debug("Skipping CLI execution in test profile");
+            return;
+        }
         try {
             // Parse command-line arguments first to get any config options
             ParsedCommand parsedCommand = parseCommandLineArgs(args);
@@ -343,5 +360,18 @@ public class ClaudeCli implements CommandLineRunner {    // Application version 
         private enum CommandType {
             EMPTY, HELP, VERSION, COMMAND
         }
+    }
+    
+    /**
+     * Check if running in test profile
+     */
+    private boolean isTestProfile() {
+        String[] activeProfiles = environment.getActiveProfiles();
+        for (String profile : activeProfiles) {
+            if ("test".equals(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

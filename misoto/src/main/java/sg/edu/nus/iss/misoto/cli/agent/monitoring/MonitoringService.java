@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Slf4j
 @Service
-@ConditionalOnProperty(name = "misoto.agent.mode.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "misoto.agent.mode.enabled", havingValue = "true", matchIfMissing = true)
 public class MonitoringService {
 
     private final AgentConfiguration agentConfig;
