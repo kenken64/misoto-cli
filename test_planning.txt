@@ -1,0 +1,4 @@
+/agent
+plan create a complete web application with frontend and backend
+exit
+/exit
