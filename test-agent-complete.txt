@@ -1,0 +1,8 @@
+agent-start
+agent-status
+agent-task CODE_GENERATION "Create a simple hello world Python script"
+agent-tasks
+agent-task FILE_WRITE "Write a test file called test.txt with content 'Hello Agent'"
+agent-tasks
+agent-stop
+exit

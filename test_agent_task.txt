@@ -1,0 +1,6 @@
+/agent
+start
+task create a simple python hello world script
+tasks
+exit
+/exit

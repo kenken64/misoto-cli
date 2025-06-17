@@ -1,0 +1,6 @@
+agent-status
+agent-start
+agent-status
+agent-task create a simple hello world Python script
+agent-tasks
+exit

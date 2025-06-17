@@ -1,0 +1,7 @@
+agent-status
+agent-task --type FILE_WRITE --description "Test file write with validation" --command "file_path:test-validation.txt,content:Hello from enhanced parameter validation!"
+agent-tasks
+agent-task --type SHELL_COMMAND --description "Test shell command with validation" --command "command:echo 'Enhanced validation working!'"
+agent-tasks --limit 5
+agent-clear
+exit
