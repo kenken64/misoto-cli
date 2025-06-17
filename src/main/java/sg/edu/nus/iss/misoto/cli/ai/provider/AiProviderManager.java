@@ -26,6 +26,12 @@ public class AiProviderManager {
     @Value("${misoto.ai.default-provider:anthropic}")
     private String defaultProviderName;
     
+    @Value("${misoto.ai.ollama.base-url:http://localhost:11434}")
+    private String ollamaBaseUrl;
+    
+    @Value("${misoto.ai.ollama.default-model:qwen2.5:0.5b}")
+    private String ollamaDefaultModel;
+    
     private final Map<String, AiProvider> providers = new HashMap<>();
     private AiProvider currentProvider;
     private boolean initialized = false;
@@ -35,6 +41,11 @@ public class AiProviderManager {
         // Register all providers
         registerProvider(anthropicProvider);
         registerProvider(ollamaProvider);
+        
+        log.info("AI Provider Manager initializing:");
+        log.info("  Default provider from config: {}", defaultProviderName);
+        log.info("  Ollama base URL: {}", ollamaBaseUrl);
+        log.info("  Ollama default model: {}", ollamaDefaultModel);
         
         // Try to set default provider with fallback
         if (!setCurrentProvider(defaultProviderName)) {
@@ -81,6 +92,8 @@ public class AiProviderManager {
      * Set the current provider
      */
     private boolean setCurrentProvider(String providerName) {
+        log.debug("Attempting to set current provider to: {}", providerName);
+        
         AiProvider provider = providers.get(providerName);
         if (provider == null) {
             log.warn("Provider '{}' not found. Available: {}", providerName, getAvailableProviders());
@@ -90,18 +103,22 @@ public class AiProviderManager {
         try {
             // Initialize provider with default config
             Map<String, Object> config = getDefaultConfigForProvider(providerName);
+            log.debug("Initializing provider '{}' with config: {}", providerName, config);
             provider.initialize(config);
             
-            if (provider.isAvailable()) {
+            boolean isAvailable = provider.isAvailable();
+            log.debug("Provider '{}' availability: {}", providerName, isAvailable);
+            
+            if (isAvailable) {
                 currentProvider = provider;
-                log.info("Switched to provider: {}", provider.getDisplayName());
+                log.info("Successfully switched to provider: {} ({})", provider.getDisplayName(), provider.getProviderName());
                 return true;
             } else {
                 log.warn("Provider '{}' is not available", provider.getDisplayName());
                 return false;
             }
         } catch (Exception e) {
-            log.error("Failed to initialize provider '{}': {}", provider.getDisplayName(), e.getMessage());
+            log.error("Failed to initialize provider '{}': {}", provider.getDisplayName(), e.getMessage(), e);
             return false;
         }
     }
@@ -243,8 +260,10 @@ public class AiProviderManager {
                 // Anthropic config comes from Spring AI auto-configuration
                 break;
             case "ollama":
-                config.put("base_url", "http://localhost:11434");
-                config.put("model", "qwen2.5:0.5b");
+                // Use environment-aware configuration
+                config.put("base_url", ollamaBaseUrl);
+                config.put("model", ollamaDefaultModel);
+                log.debug("Ollama config: base_url={}, model={}", ollamaBaseUrl, ollamaDefaultModel);
                 break;
         }
         

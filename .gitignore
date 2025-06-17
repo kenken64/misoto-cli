@@ -33,3 +33,5 @@ build/
 .vscode/
 
 misoto.log
+.env
+.env.backup

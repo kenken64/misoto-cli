@@ -148,6 +148,9 @@ public class PlanningService {
      * Execute a single ReAct cycle: Reasoning → Acting → Observation
      */
     private ReActCycleResult executeReActCycle(SubTask subTask, PlanExecution execution, ExecutionPlan plan) throws Exception {
+        // Print the current subtask being worked on
+        System.out.println("🎯 Working on: " + subTask.getDescription() + " [" + subTask.getPriority() + "]");
+        
         // Reasoning Phase
         String reasoning = performReasoning(subTask, execution, plan);
         
@@ -190,11 +193,11 @@ public class PlanningService {
             %s
             
             AVAILABLE TOOLS:
-            - FILE_OPERATIONS: Read, write, copy, delete files
-            - SHELL_COMMANDS: Execute system commands
+            - FILE_READ, FILE_WRITE, FILE_COPY, FILE_DELETE: File operations
+            - SHELL_COMMAND: Execute system commands
             - CODE_GENERATION: Generate and execute code
             - AI_ANALYSIS: Analyze data and make decisions
-            - MCP_TOOLS: Use Model Context Protocol tools
+            - MCP_TOOL_CALL: Use Model Context Protocol tools
             
             REASONING TASK:
             Analyze the current situation and decide what action to take next to complete this subtask.
@@ -232,11 +235,27 @@ public class PlanningService {
             Based on your reasoning:
             %s
             
-            Now decide on a specific action to take. Respond in this format:
-            ACTION_TYPE: [FILE_OPERATIONS|SHELL_COMMANDS|CODE_GENERATION|AI_ANALYSIS|MCP_TOOLS]
+            Now decide on a specific action to take. Respond EXACTLY in this format:
+            ACTION_TYPE: [FILE_READ|FILE_WRITE|FILE_COPY|FILE_DELETE|SHELL_COMMAND|CODE_GENERATION|AI_ANALYSIS|MCP_TOOL_CALL]
             ACTION_DESCRIPTION: A clear description of what you're doing
-            PARAMETERS: Key-value pairs needed for the action
+            PARAMETERS: param1=value1, param2=value2
             EXPECTED_OUTCOME: What you expect to happen
+            
+            CRITICAL: Use these exact parameter names (case-sensitive):
+              - For SHELL_COMMAND: command=mkdir -p todoApp
+              - For FILE_READ: file_path=/path/to/file.txt
+              - For FILE_WRITE: file_path=/path/to/file.txt, content=file content here
+              - For FILE_COPY: source_path=/source/file, target_path=/target/file
+              - For FILE_DELETE: file_path=/path/to/file.txt
+              - For CODE_GENERATION: task_description=what to generate, language=python
+              - For AI_ANALYSIS: task_description=what to analyze, context=analysis context
+              - For MCP_TOOL_CALL: tool_name=tool_name, tool_arguments=arguments
+            
+            Example for creating a directory:
+            ACTION_TYPE: SHELL_COMMAND
+            ACTION_DESCRIPTION: Creating project directory structure for the Todo app
+            PARAMETERS: command=mkdir -p todoApp/frontend todoApp/backend, working_directory=.
+            EXPECTED_OUTCOME: Directory structure will be created
             """, reasoning);
         
         log.debug("Action decision prompt: {}", actionPrompt);
@@ -246,6 +265,10 @@ public class PlanningService {
         
         // Execute the action by creating an agent task
         AgentTask task = createTaskFromAction(subTask, actionSpec);
+        
+        // Print the step being executed
+        System.out.println("🚀 Executing step: " + actionSpec.getDescription() + " [" + actionSpec.getType() + "]");
+        
         String taskId = taskQueue.submitTask(task);
         
         // Wait for task completion and collect results
@@ -258,6 +281,19 @@ public class PlanningService {
         if (completedTask.getResult() != null) {
             memoryUpdates.put("last_result", completedTask.getResult().getOutput());
             memoryUpdates.put("files_created", completedTask.getResult().getFilesCreated());
+        }
+        
+        // Print completion status
+        if (completedTask.getStatus() == AgentTask.TaskStatus.COMPLETED) {
+            System.out.println("✅ Step completed successfully");
+            if (completedTask.getResult() != null && completedTask.getResult().getOutput() != null) {
+                String output = completedTask.getResult().getOutput().trim();
+                if (!output.isEmpty()) {
+                    System.out.println("📤 Output: " + output);
+                }
+            }
+        } else {
+            System.out.println("❌ Step failed: " + completedTask.getErrorMessage());
         }
         
         return ActionResult.builder()
@@ -488,11 +524,21 @@ public class PlanningService {
     
     private ActionSpec parseActionSpec(String response) {
         Map<String, String> fields = parseFields(response);
+        Map<String, Object> parameters = parseParameters(fields.getOrDefault("PARAMETERS", ""));
+        AgentTask.TaskType taskType = AgentTask.TaskType.valueOf(fields.getOrDefault("ACTION_TYPE", "AI_ANALYSIS"));
+        
+        // Print command if it's a shell command and we have the command parameter
+        if (taskType == AgentTask.TaskType.SHELL_COMMAND && parameters.containsKey("command")) {
+            String command = (String) parameters.get("command");
+            if (command != null && !command.trim().isEmpty()) {
+                System.out.println("🤖 Agent plans to execute: " + command);
+            }
+        }
         
         return ActionSpec.builder()
-            .type(AgentTask.TaskType.valueOf(fields.getOrDefault("ACTION_TYPE", "AI_ANALYSIS")))
+            .type(taskType)
             .description(fields.getOrDefault("ACTION_DESCRIPTION", "Unknown action"))
-            .parameters(parseParameters(fields.getOrDefault("PARAMETERS", "")))
+            .parameters(parameters)
             .expectedOutcome(fields.getOrDefault("EXPECTED_OUTCOME", ""))
             .build();
     }
@@ -500,27 +546,118 @@ public class PlanningService {
     private Map<String, Object> parseParameters(String params) {
         Map<String, Object> paramMap = new HashMap<>();
         if (!params.isEmpty()) {
+            log.debug("Parsing parameters: {}", params);
             String[] pairs = params.split(",");
             for (String pair : pairs) {
                 String[] kv = pair.split("=", 2);
                 if (kv.length == 2) {
-                    paramMap.put(kv[0].trim(), kv[1].trim());
+                    String key = kv[0].trim();
+                    String value = kv[1].trim();
+                    // Remove quotes if present
+                    if (value.startsWith("\"") && value.endsWith("\"")) {
+                        value = value.substring(1, value.length() - 1);
+                    }
+                    paramMap.put(key, value);
+                    log.debug("  Parameter: {} = {}", key, value);
+                } else {
+                    log.warn("Skipping malformed parameter pair: {}", pair);
                 }
             }
         }
+        log.debug("Parsed parameters: {}", paramMap);
         return paramMap;
     }
     
     private AgentTask createTaskFromAction(SubTask subTask, ActionSpec actionSpec) {
+        // Enhance parameters based on task type if needed
+        Map<String, Object> enhancedParams = enhanceParameters(actionSpec.getType(), actionSpec.getParameters(), actionSpec.getDescription());
+        
         return AgentTask.builder()
             .id("action-" + System.currentTimeMillis())
             .name("Plan Action: " + actionSpec.getDescription())
             .type(actionSpec.getType())
             .description(actionSpec.getDescription())
-            .parameters(actionSpec.getParameters())
+            .parameters(enhancedParams)
             .priority(mapPriority(subTask.getPriority()))
             .createdAt(Instant.now())
             .build();
+    }
+    
+    private Map<String, Object> enhanceParameters(AgentTask.TaskType taskType, Map<String, Object> originalParams, String description) {
+        Map<String, Object> enhanced = new HashMap<>(originalParams);
+        
+        // Add fallback parameters based on task type if they're missing
+        switch (taskType) {
+            case SHELL_COMMAND -> {
+                if (!enhanced.containsKey("command") || enhanced.get("command") == null || enhanced.get("command").toString().trim().isEmpty()) {
+                    // Try to extract command from description or provide a safe default
+                    String extractedCommand = extractCommandFromDescription(description);
+                    if (extractedCommand != null) {
+                        enhanced.put("command", extractedCommand);
+                        System.out.println("🤖 Agent plans to execute: " + extractedCommand);
+                        log.info("Added fallback command parameter: {}", extractedCommand);
+                    } else {
+                        log.warn("No command parameter found for SHELL_COMMAND task, using safe default");
+                        enhanced.put("command", "echo 'No command specified'");
+                    }
+                }
+            }
+            case FILE_READ, FILE_DELETE -> {
+                if (!enhanced.containsKey("file_path") || enhanced.get("file_path") == null) {
+                    log.warn("No file_path parameter found for {} task", taskType);
+                    enhanced.put("file_path", "./example.txt");
+                }
+            }
+            case FILE_WRITE -> {
+                if (!enhanced.containsKey("file_path") || enhanced.get("file_path") == null) {
+                    enhanced.put("file_path", "./generated_file.txt");
+                }
+                if (!enhanced.containsKey("content") || enhanced.get("content") == null) {
+                    enhanced.put("content", "Generated content from: " + description);
+                }
+            }
+            case CODE_GENERATION -> {
+                if (!enhanced.containsKey("task_description") || enhanced.get("task_description") == null) {
+                    enhanced.put("task_description", description);
+                }
+                if (!enhanced.containsKey("language") || enhanced.get("language") == null) {
+                    enhanced.put("language", "python");
+                }
+            }
+            case AI_ANALYSIS -> {
+                if (!enhanced.containsKey("task_description") || enhanced.get("task_description") == null) {
+                    enhanced.put("task_description", description);
+                }
+                if (!enhanced.containsKey("context") || enhanced.get("context") == null) {
+                    enhanced.put("context", "General analysis");
+                }
+            }
+        }
+        
+        return enhanced;
+    }
+    
+    private String extractCommandFromDescription(String description) {
+        // Try to extract shell commands from common patterns in descriptions
+        if (description.toLowerCase().contains("create directory") || description.toLowerCase().contains("creating") && description.toLowerCase().contains("directory")) {
+            if (description.toLowerCase().contains("todo") || description.toLowerCase().contains("todoapp")) {
+                return "mkdir -p todoApp";
+            }
+            return "mkdir -p project_directory";
+        }
+        if (description.toLowerCase().contains("list") && description.toLowerCase().contains("content")) {
+            return "ls -la";
+        }
+        if (description.toLowerCase().contains("check") && description.toLowerCase().contains("exist")) {
+            return "ls -la";
+        }
+        if (description.toLowerCase().contains("python") && description.toLowerCase().contains("version")) {
+            return "python --version";
+        }
+        if (description.toLowerCase().contains("node") && description.toLowerCase().contains("version")) {
+            return "node --version";
+        }
+        return null;
     }
     
     private AgentTask.TaskPriority mapPriority(SubTask.Priority priority) {

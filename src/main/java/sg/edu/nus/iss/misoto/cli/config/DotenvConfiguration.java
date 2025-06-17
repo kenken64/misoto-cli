@@ -36,6 +36,19 @@ public class DotenvConfiguration implements ApplicationListener<ApplicationEnvir
         addIfPresent(dotenvProps, "CLAUDE_LOG_LEVEL");
         addIfPresent(dotenvProps, "CLAUDE_TELEMETRY");
         
+        // Add AI provider configuration variables
+        addIfPresent(dotenvProps, "MISOTO_AI_DEFAULT_PROVIDER");
+        
+        // Add Ollama configuration variables
+        addIfPresent(dotenvProps, "OLLAMA_HOST");
+        addIfPresent(dotenvProps, "MISOTO_AI_OLLAMA_URL");
+        addIfPresent(dotenvProps, "MISOTO_AI_OLLAMA_MODEL");
+        
+        // Add agent system variables
+        addIfPresent(dotenvProps, "MISOTO_AGENT_MODE");
+        addIfPresent(dotenvProps, "MISOTO_AGENT_MAX_TASKS");
+        addIfPresent(dotenvProps, "MISOTO_AGENT_INTERVAL");
+        
         if (!dotenvProps.isEmpty()) {
             // Add dotenv properties to Spring environment with high precedence
             environment.getPropertySources().addFirst(

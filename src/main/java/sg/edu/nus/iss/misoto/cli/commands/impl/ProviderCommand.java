@@ -2,6 +2,7 @@ package sg.edu.nus.iss.misoto.cli.commands.impl;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import sg.edu.nus.iss.misoto.cli.ai.provider.*;
 import sg.edu.nus.iss.misoto.cli.commands.Command;
@@ -19,6 +20,9 @@ public class ProviderCommand implements Command {
     
     @Autowired
     private AiProviderManager providerManager;
+    
+    @Autowired
+    private Environment environment;
     
     @Override
     public String getName() {
@@ -227,6 +231,27 @@ public class ProviderCommand implements Command {
         
         if (caps.getMaxTokens() != null) {
             System.out.println("  • Max Tokens: " + caps.getMaxTokens());
+        }
+        
+        // Show environment configuration for specific providers
+        if ("ollama".equals(currentProvider.getProviderName())) {
+            System.out.println(FormattingUtil.formatWithColor("\nEnvironment Configuration:", FormattingUtil.ANSI_YELLOW));
+            String ollamaHost = environment.getProperty("OLLAMA_HOST");
+            String misotoOllamaUrl = environment.getProperty("MISOTO_AI_OLLAMA_URL");
+            String misotoOllamaModel = environment.getProperty("MISOTO_AI_OLLAMA_MODEL");
+            String defaultProvider = environment.getProperty("MISOTO_AI_DEFAULT_PROVIDER");
+            
+            System.out.println("  • OLLAMA_HOST: " + (ollamaHost != null ? ollamaHost : "not set"));
+            System.out.println("  • MISOTO_AI_OLLAMA_URL: " + (misotoOllamaUrl != null ? misotoOllamaUrl : "not set"));
+            System.out.println("  • MISOTO_AI_OLLAMA_MODEL: " + (misotoOllamaModel != null ? misotoOllamaModel : "not set"));
+            System.out.println("  • MISOTO_AI_DEFAULT_PROVIDER: " + (defaultProvider != null ? defaultProvider : "not set"));
+        } else if ("anthropic".equals(currentProvider.getProviderName())) {
+            System.out.println(FormattingUtil.formatWithColor("\nEnvironment Configuration:", FormattingUtil.ANSI_YELLOW));
+            String anthropicApiKey = environment.getProperty("ANTHROPIC_API_KEY");
+            String defaultProvider = environment.getProperty("MISOTO_AI_DEFAULT_PROVIDER");
+            
+            System.out.println("  • ANTHROPIC_API_KEY: " + (anthropicApiKey != null ? "✅ Set" : "❌ Not set"));
+            System.out.println("  • MISOTO_AI_DEFAULT_PROVIDER: " + (defaultProvider != null ? defaultProvider : "not set"));
         }
         
         AiUsage lastUsage = currentProvider.getLastUsage();

@@ -89,8 +89,14 @@ Located in `misoto/src/main/java/sg/edu/nus/iss/misoto/cli/mcp/`:
 
 ### Environment Variables
 ```bash
-# Required
-ANTHROPIC_API_KEY=sk-ant-api03-...
+# AI Provider Configuration
+ANTHROPIC_API_KEY=sk-ant-api03-...              # Claude AI API key (required for Anthropic)
+MISOTO_AI_DEFAULT_PROVIDER=anthropic            # Default AI provider (anthropic|ollama)
+
+# Ollama Configuration (if using Ollama)
+OLLAMA_HOST=http://localhost:11434              # Standard Ollama host URL
+MISOTO_AI_OLLAMA_URL=http://localhost:11434     # Custom Ollama URL (overrides OLLAMA_HOST)
+MISOTO_AI_OLLAMA_MODEL=qwen2.5:0.5b             # Default Ollama model
 
 # Agent system
 MISOTO_AGENT_MODE=true

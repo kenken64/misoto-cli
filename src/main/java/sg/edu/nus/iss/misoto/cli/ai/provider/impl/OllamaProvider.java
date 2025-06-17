@@ -12,6 +12,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,9 +27,12 @@ public class OllamaProvider implements AiProvider {
     @Value("${misoto.ai.ollama.base-url:http://localhost:11434}")
     private String baseUrl;
     
+    @Value("${misoto.ai.ollama.default-model:qwen2.5:0.5b}")
+    private String defaultModel;
+    
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
-    private String currentModel = "qwen2.5:0.5b";
+    private String currentModel;
     private AiUsage lastUsage;
     private boolean initialized = false;
     private List<String> availableModels = new ArrayList<>();
@@ -38,6 +42,13 @@ public class OllamaProvider implements AiProvider {
             .connectTimeout(Duration.ofSeconds(30))
             .build();
         this.objectMapper = new ObjectMapper();
+    }
+    
+    @PostConstruct
+    public void logConfiguration() {
+        log.debug("Ollama Provider Configuration:");
+        log.debug("  Base URL: {} (from MISOTO_AI_OLLAMA_URL or OLLAMA_HOST)", baseUrl);
+        log.debug("  Default Model: {} (from MISOTO_AI_OLLAMA_MODEL)", defaultModel);
     }
     
     @Override
@@ -57,9 +68,14 @@ public class OllamaProvider implements AiProvider {
     
     @Override
     public void initialize(Map<String, Object> config) throws Exception {
-        // Set base URL if specified in config
+        // Set base URL if specified in config (overrides environment variable)
         if (config.containsKey("base_url")) {
             baseUrl = (String) config.get("base_url");
+        }
+        
+        // Initialize current model with environment-aware default
+        if (currentModel == null) {
+            currentModel = defaultModel;
         }
         
         // Check if Ollama is running
@@ -70,24 +86,39 @@ public class OllamaProvider implements AiProvider {
         // Load available models
         loadAvailableModels();
         
-        // Set model if specified in config
+        // Set model if specified in config (overrides environment variable)
         if (config.containsKey("model")) {
             String requestedModel = (String) config.get("model");
             if (availableModels.contains(requestedModel)) {
                 setModel(requestedModel);
             } else {
-                // If requested model not available, use first available model
-                if (!availableModels.isEmpty()) {
+                // If requested model not available, try the environment default
+                if (availableModels.contains(defaultModel)) {
+                    currentModel = defaultModel;
+                    log.warn("Requested model '{}' not available. Using environment default: {}", requestedModel, currentModel);
+                } else if (!availableModels.isEmpty()) {
+                    // Fall back to first available model
                     currentModel = availableModels.get(0);
-                    log.warn("Requested model '{}' not available. Using default: {}", requestedModel, currentModel);
+                    log.warn("Neither requested model '{}' nor default '{}' available. Using: {}", 
+                        requestedModel, defaultModel, currentModel);
                 } else {
                     log.error("No models available in Ollama!");
                 }
             }
+        } else {
+            // No model specified in config, use environment default if available
+            if (availableModels.contains(defaultModel)) {
+                currentModel = defaultModel;
+                log.info("Using environment default model: {}", currentModel);
+            } else if (!availableModels.isEmpty()) {
+                currentModel = availableModels.get(0);
+                log.warn("Environment default model '{}' not available. Using: {}", defaultModel, currentModel);
+            }
         }
         
         initialized = true;
-        log.info("Ollama provider initialized with model: {} (available: {})", currentModel, availableModels.size());
+        log.info("Ollama provider initialized with model: {} (available: {}) [base_url: {}]", 
+            currentModel, availableModels.size(), baseUrl);
     }
     
     @Override
