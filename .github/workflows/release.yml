@@ -90,8 +90,93 @@ jobs:
         path: target/surefire-reports/
         retention-days: 30
 
-  release:
+  publish-packages:
     needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: ${{ env.JAVA_DISTRIBUTION }}
+    
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+    
+    - name: Extract version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION=${GITHUB_REF#refs/tags/}
+        fi
+        echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+        echo "CLEAN_VERSION=${VERSION#v}" >> $GITHUB_OUTPUT
+    
+    - name: Update version in pom.xml
+      run: |
+        mvn versions:set -DnewVersion=${{ steps.version.outputs.CLEAN_VERSION }}
+        mvn versions:commit
+    
+    - name: Configure Maven for GitHub Packages
+      run: |
+        mkdir -p ~/.m2
+        cat > ~/.m2/settings.xml << 'EOF'
+        <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                                      http://maven.apache.org/xsd/settings-1.0.0.xsd">
+          <servers>
+            <server>
+              <id>github</id>
+              <username>${env.GITHUB_ACTOR}</username>
+              <password>${env.GITHUB_TOKEN}</password>
+            </server>
+          </servers>
+        </settings>
+        EOF
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_ACTOR: ${{ github.actor }}
+    
+    - name: Build and publish package to GitHub Packages
+      run: |
+        mvn clean deploy -DskipTests -Dgithub=true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Create Source JAR
+      run: |
+        mvn source:jar -DskipTests
+    
+    - name: Create Javadoc JAR
+      run: |
+        mvn javadoc:jar -DskipTests
+    
+    - name: Upload JAR artifacts for release
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-jars
+        path: |
+          target/misoto-*.jar
+          target/misoto-*-sources.jar
+          target/misoto-*-javadoc.jar
+        retention-days: 1
+
+  release:
+    needs: [build-and-test, publish-packages]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -113,10 +198,10 @@ jobs:
         echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
         echo "CLEAN_VERSION=${VERSION#v}" >> $GITHUB_OUTPUT
     
-    - name: Download JAR artifact
+    - name: Download JAR artifacts
       uses: actions/download-artifact@v4
       with:
-        name: misoto-jar
+        name: release-jars
         path: ./artifacts
     
     - name: Generate changelog
@@ -155,7 +240,7 @@ jobs:
         
         ## 📦 Installation
         
-        ### Download and Run
+        ### Option 1: Download and Run JAR
         ```bash
         # Download the JAR
         wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.VERSION }}/misoto-${{ steps.version.outputs.CLEAN_VERSION }}.jar
@@ -166,6 +251,34 @@ jobs:
         # Or make it executable (Unix/Linux/macOS)
         chmod +x misoto-${{ steps.version.outputs.CLEAN_VERSION }}.jar
         ./misoto-${{ steps.version.outputs.CLEAN_VERSION }}.jar --help
+        ```
+        
+        ### Option 2: Use as Maven Dependency
+        ```xml
+        <dependency>
+            <groupId>sg.edu.nus.iss</groupId>
+            <artifactId>misoto</artifactId>
+            <version>${{ steps.version.outputs.CLEAN_VERSION }}</version>
+        </dependency>
+        ```
+        
+        Add GitHub Packages repository to your `pom.xml`:
+        ```xml
+        <repositories>
+            <repository>
+                <id>github</id>
+                <url>https://maven.pkg.github.com/kenken64/misoto-cli</url>
+            </repository>
+        </repositories>
+        ```
+        
+        ### Option 3: GitHub Packages CLI
+        ```bash
+        # Configure GitHub Packages authentication
+        echo "//maven.pkg.github.com/:_authToken=YOUR_TOKEN" >> ~/.npmrc
+        
+        # Use with GitHub CLI
+        gh package download sg.edu.nus.iss/misoto --version ${{ steps.version.outputs.CLEAN_VERSION }}
         ```
         
         ### Requirements
