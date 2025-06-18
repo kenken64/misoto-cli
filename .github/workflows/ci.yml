@@ -10,6 +10,11 @@ env:
   JAVA_VERSION: '17'
   JAVA_DISTRIBUTION: 'temurin'
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -36,11 +41,70 @@ jobs:
     
     - name: Generate test report
       uses: dorny/test-reporter@v1
-      if: success() || failure()
+      if: (success() || failure()) && github.event_name == 'push'
       with:
         name: Maven Tests
         path: target/surefire-reports/*.xml
         reporter: java-junit
+        
+    - name: Comment test results on PR
+      if: (success() || failure()) && github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Read test results
+          let testSummary = '## 🧪 Test Results\n\n';
+          
+          try {
+            const testDir = 'target/surefire-reports';
+            if (fs.existsSync(testDir)) {
+              const files = fs.readdirSync(testDir).filter(f => f.endsWith('.xml'));
+              if (files.length > 0) {
+                testSummary += `✅ Found ${files.length} test report file(s)\n`;
+                testSummary += '📊 Test results are available in the uploaded artifacts\n';
+              } else {
+                testSummary += '⚠️ No test report files found\n';
+              }
+            } else {
+              testSummary += '❌ Test reports directory not found\n';
+            }
+          } catch (error) {
+            testSummary += `❌ Error reading test results: ${error.message}\n`;
+          }
+          
+          testSummary += '\n💾 Full test reports are uploaded as artifacts for detailed review.';
+          
+          // Find existing comment
+          const comments = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          
+          const botComment = comments.data.find(comment => 
+            comment.user.type === 'Bot' && comment.body.includes('🧪 Test Results')
+          );
+          
+          if (botComment) {
+            // Update existing comment
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: testSummary
+            });
+          } else {
+            // Create new comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: testSummary
+            });
+          }
     
     - name: Upload test results
       uses: actions/upload-artifact@v4
