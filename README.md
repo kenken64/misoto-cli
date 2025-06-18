@@ -49,29 +49,6 @@ The CLI provides comprehensive functionality:
 | [package.md](package.md) | Configuration | Package configuration details |
 | [package-lock.md](package-lock.md) | Dependencies | Dependency lock information |
 
-## Project Structure
-
-```
-src/main/java/sg/edu/nus/iss/misoto/cli/
-├── ClaudeCli.java                     # Main CLI entry point and command parser
-├── ai/
-│   └── AiClient.java                  # Claude AI integration using Spring AI
-├── auth/
-│   └── AuthManager.java               # Authentication token management
-├── commands/
-│   ├── Command.java                   # Command interface
-│   ├── CommandExecutor.java           # Command execution service
-│   ├── CommandRegistry.java           # Command registry and help generation
-│   ├── CommandRegistrationService.java # Command registration
-│   └── impl/
-│       ├── AskCommand.java            # Ask questions to Claude AI
-│       ├── ExplainCommand.java        # Explain code files
-│       ├── LoginCommand.java          # Authentication login
-│       └── LogoutCommand.java         # Authentication logout
-└── errors/
-    ├── ErrorFormatter.java            # Error formatting for display
-    └── UserError.java                 # User-facing error type
-```
 
 ## Key Features Converted from TypeScript
 

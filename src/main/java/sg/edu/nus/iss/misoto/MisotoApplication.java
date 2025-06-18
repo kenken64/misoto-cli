@@ -18,6 +18,8 @@ public class MisotoApplication {
 		log.debug("Starting Misoto application with {} arguments", args.length);
 		log.debug("Environment check - ANTHROPIC_API_KEY: {}", 
 			DotenvLoader.hasEnv("ANTHROPIC_API_KEY") ? "Present" : "Not found");
+		log.info("Environment check - ANTHROPIC_MODEL: {}", 
+			DotenvLoader.hasEnv("ANTHROPIC_MODEL") ? DotenvLoader.getEnv("ANTHROPIC_MODEL") : "Not found");
 		
 		// Process MCP CLI options first
 		McpCliOptions mcpCliOptions = new McpCliOptions();

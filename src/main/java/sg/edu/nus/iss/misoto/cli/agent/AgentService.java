@@ -140,6 +140,9 @@ public class AgentService {
             log.info("Stopping Misoto Agent Service...");
             isShuttingDown.set(true);
             
+            // Signal decision engine to stop making API calls
+            decisionEngine.setShuttingDown(true);
+            
             // Stop monitoring
             monitoringService.stopMonitoring();
             
@@ -284,6 +287,11 @@ public class AgentService {
      * Make decisions about new tasks and strategies
      */
     private void makeDecisions() {
+        // Skip decisions if shutting down to avoid API calls
+        if (isShuttingDown.get()) {
+            return;
+        }
+        
         try {
             // Get current context
             var context = buildDecisionContext();

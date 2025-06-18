@@ -28,6 +28,7 @@ public class DecisionEngine {
     
     private AgentConfiguration config;
     private final Map<String, DecisionHistory> decisionHistory = new HashMap<>();
+    private volatile boolean isShuttingDown = false;
       /**
      * Initialize the decision engine
      */
@@ -60,7 +61,23 @@ public class DecisionEngine {
             .agentState(stateManager.getContext())
             .build();
         
-        String decision = processDecisionRequest(request);
+        String decision;
+        try {
+            decision = processDecisionRequest(request);
+        } catch (Exception e) {
+            // Check if it's a connection-related error and suppress if shutting down
+            if (isShuttingDown && isConnectionError(e)) {
+                log.debug("Suppressed connection error during shutdown: {}", e.getMessage());
+                return "SHUTDOWN_FALLBACK_DECISION";
+            }
+            // Check for connection errors in general and provide fallback
+            if (isConnectionError(e)) {
+                log.warn("Connection error during decision making, using fallback: {}", e.getMessage());
+                decision = "CONNECTION_ERROR_FALLBACK";
+            } else {
+                throw e;
+            }
+        }
         
         // Store decision in history
         DecisionHistory history = DecisionHistory.builder()
@@ -153,7 +170,33 @@ public class DecisionEngine {
             .limit(limit)
             .collect(Collectors.toList());
     }
+    
+    /**
+     * Signal that the system is shutting down
+     */
+    public void setShuttingDown(boolean shuttingDown) {
+        this.isShuttingDown = shuttingDown;
+    }
+    
+    /**
+     * Check if an exception is a connection-related error
+     */
+    private boolean isConnectionError(Exception e) {
+        String message = e.getMessage();
+        if (message == null) return false;
+        
+        return message.contains("Connection prematurely closed") ||
+               message.contains("Connection reset") ||
+               message.contains("Connection refused") ||
+               message.contains("I/O error on POST request") ||
+               message.contains("Failed to communicate with");
+    }
       private String processDecisionRequest(DecisionRequest request) throws Exception {
+        // Skip AI calls if shutting down
+        if (isShuttingDown) {
+            return "SHUTDOWN_IN_PROGRESS";
+        }
+        
         ensureAiClientReady();
         String prompt = buildDecisionPrompt(request);
         return aiClient.sendMessage(prompt);

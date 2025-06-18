@@ -128,8 +128,18 @@ public class ChatCommand implements Command {
         // Clear screen before starting chat
         clearScreen();
         
+        // Temporarily pause agent service to prevent API calls during chat
+        boolean agentWasRunning = false;
+        if (agentService != null && agentService.isRunning()) {
+            agentWasRunning = true;
+            showAgentShutdownProgress("Pausing agent for chat");
+            agentService.stopAgent();
+            log.info("Temporarily stopped agent service for chat session");
+        }
+        
         List<ChatMessage> conversationHistory = new ArrayList<>();
         BufferedReader reader = null;
+        final boolean finalAgentWasRunning = agentWasRunning;
         
         try {
             reader = new BufferedReader(new InputStreamReader(System.in));
@@ -204,6 +214,16 @@ public class ChatCommand implements Command {
             reader = null;
             // Perform cleanup operations
             performCleanup();
+            
+            // Restart agent service if it was running before
+            if (finalAgentWasRunning && agentService != null) {
+                try {
+                    agentService.startAgent();
+                    log.info("Restarted agent service after chat session");
+                } catch (Exception e) {
+                    log.error("Failed to restart agent service", e);
+                }
+            }
         }
     }
     
@@ -434,6 +454,11 @@ public class ChatCommand implements Command {
     }
     
     private void displaySessionSummary() {
+        // Show progress indicator for exiting chat
+        if (agentService != null) {
+            showAgentShutdownProgress("exiting");
+        }
+        
         if (messageCount > 0) {
             System.out.println(FormattingUtil.formatWithColor("\n🎯 Session Summary:", FormattingUtil.ANSI_CYAN + FormattingUtil.ANSI_BOLD));
             System.out.println(FormattingUtil.formatWithColor("─".repeat(40), FormattingUtil.ANSI_CYAN));
@@ -1510,5 +1535,75 @@ public class ChatCommand implements Command {
                 System.out.println();
             }
         }
+    }
+
+    /**
+     * Show animated progress bar for agent shutdown
+     */
+    private void showAgentShutdownProgress(String action) {
+        final int barWidth = 40;
+        final String greenBar = "\u001B[42m \u001B[0m";  // Green background
+        final String grayBar = "\u001B[100m \u001B[0m";   // Gray background
+        final String yellow = "\u001B[33m";
+        final String green = "\u001B[32m";
+        final String red = "\u001B[31m";
+        final String reset = "\u001B[0m";
+        
+        System.out.print(yellow + "Preset: " + action + " " + reset);
+        System.out.flush();
+        
+        long startTime = System.currentTimeMillis();
+        
+        // Always animate progress bar from 0 to 100%
+        int totalSteps = 100; // 100 steps for smooth animation
+        for (int i = 0; i <= totalSteps; i++) {
+            // Calculate progress
+            int progress = (i * barWidth) / totalSteps;
+            int percentage = i;
+            long elapsed = System.currentTimeMillis() - startTime;
+            
+            // Clear line and redraw
+            System.out.print("\r" + yellow + "Preset: " + action + " " + reset);
+            
+            // Draw progress bar
+            for (int j = 0; j < barWidth; j++) {
+                if (j < progress) {
+                    System.out.print(greenBar);
+                } else {
+                    System.out.print(grayBar);
+                }
+            }
+            
+            // Calculate ETA
+            String eta;
+            if (i == 0) {
+                eta = "calculating";
+            } else if (i == totalSteps) {
+                eta = "complete";
+            } else {
+                long avgTimePerStep = elapsed / i;
+                long remainingSteps = totalSteps - i;
+                long etaMs = remainingSteps * avgTimePerStep;
+                eta = etaMs + "ms";
+            }
+            
+            // Show completion when done
+            if (i == totalSteps) {
+                System.out.print(" " + green + percentage + "%" + reset + " | ETA: " + eta + " | " + elapsed + "ms");
+            } else {
+                System.out.print(" " + percentage + "% | ETA: " + eta + " | " + elapsed + "ms");
+            }
+            System.out.flush();
+            
+            // Delay between updates
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        
+        System.out.println(); // New line after completion
     }
 }

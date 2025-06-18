@@ -1,318 +1,340 @@
-# Claude Code Markdown - Project Structure Documentation
+# Misoto CLI - Project Structure Documentation
 
-## Updated Project Structure (Current as of June 15, 2025)
+## Updated Project Structure (Current as of June 17, 2025)
 
 ```
-claude-code-markdown/
-├── README.md
-├── PORTING_DOCUMENTATION.md  
-├── package.md
-├── package-lock.md
+misoto-cli/                              # Root project directory
+├── README.md                            # Main project documentation with comprehensive tables
+├── CLAUDE.md                            # Development guidance for Claude Code
+├── CLI-README.md                        # Basic CLI documentation
+├── PORTING_DOCUMENTATION.md             # TypeScript to Java migration documentation
+├── AGENT_MODE_README.md                 # Agent system documentation
+├── AGENT_IMPLEMENTATION_COMPLETE.md     # Agent implementation completion status
+├── MCP_CONFIG_MIGRATION_COMPLETED.md    # MCP configuration migration status
+├── MCP_MULTI_SERVER_COMPLETION.md       # Multi-server MCP support completion
+├── PARAMETER_VALIDATION_ENHANCEMENT_COMPLETE.md # Parameter validation enhancements
+├── PLANNING_SYSTEM_README.md            # ReAct planning system documentation
+├── PROJECT_STRUCTURE_UPDATED.md         # This file - project structure documentation
+├── MARKDOWN_FILES_INVENTORY.md          # Complete listing of all markdown files
+├── package.md                           # Package configuration details
+├── package-lock.md                      # Dependency lock information
+├── backup-config.json                   # Configuration backup
+├── pom.xml                              # Root Maven configuration
+├── mvnw                                 # Maven wrapper (Unix)
+├── mvnw.cmd                             # Maven wrapper (Windows)
 │
-├── claude-code/                          # TypeScript CLI implementation
-│   ├── LICENSE.md
-│   ├── package.md
-│   ├── tsconfig.md
-│   ├── scripts/
-│   │   └── preinstall.md
-│   └── src/
-│       ├── cli.md
-│       ├── cli.ts
-│       ├── index.md
-│       ├── index.ts
-│       ├── ai/                           # AI client implementations
-│       │   ├── client.md
-│       │   ├── client.ts
-│       │   ├── index.md
-│       │   ├── index.ts
-│       │   ├── prompts.md
-│       │   ├── prompts.ts
-│       │   ├── types.md
-│       │   └── types.ts
-│       ├── auth/                         # Authentication system
-│       │   ├── index.md
-│       │   ├── index.ts
-│       │   ├── manager.md
-│       │   ├── manager.ts
-│       │   ├── oauth.md
-│       │   ├── oauth.ts
-│       │   ├── tokens.md
-│       │   ├── tokens.ts
-│       │   ├── types.md
-│       │   └── types.ts
-│       ├── codebase/                     # Code analysis tools
-│       │   ├── analyzer.md
-│       │   ├── analyzer.ts
-│       │   └── index.md
-│       ├── commands/                     # CLI commands
-│       │   ├── index.md
-│       │   └── register.md
-│       ├── config/                       # Configuration management
-│       │   ├── defaults.md
-│       │   ├── index.md
-│       │   └── schema.md
-│       ├── errors/                       # Error handling
-│       │   ├── console.md
-│       │   ├── formatter.md
-│       │   ├── index.md
-│       │   ├── sentry.md
-│       │   └── types.md
-│       ├── execution/                    # Code execution
-│       │   └── index.md
-│       ├── fileops/                      # File operations
-│       │   └── index.md
-│       ├── fs/                          # File system utilities
-│       │   └── operations.md
-│       ├── telemetry/                   # Usage analytics
-│       │   └── index.md
-│       ├── terminal/                    # Terminal interface
-│       │   ├── formatting.md
-│       │   ├── index.md
-│       │   ├── prompt.md
-│       │   └── types.md
-│       └── utils/                       # Utility functions
-│           ├── async.md
-│           ├── formatting.md
-│           ├── index.md
-│           ├── logger.md
-│           ├── types.md
-│           └── validation.md
-│
-├── mcp-server/                          # Model Context Protocol Server
-│   ├── build.gradle
-│   ├── gradlew
-│   ├── gradlew.bat
-│   ├── pom.xml
-│   ├── settings.gradle
-│   ├── README.md
-│   ├── TESTING_RESULTS.md
-│   ├── test-*.ps1                       # PowerShell test scripts
-│   ├── simple-*.ps1                    # Simple test scripts
-│   ├── .github/
-│   │   └── copilot-instructions.md
-│   ├── build/
-│   │   └── reports/
+├── mcp-server/                          # Model Context Protocol Server (Gradle)
+│   ├── README.md                        # MCP server documentation
+│   ├── TESTING_RESULTS.md               # MCP testing results and validation
+│   ├── build.gradle                     # Gradle build configuration
+│   ├── settings.gradle                  # Gradle settings
+│   ├── pom.xml                          # Maven configuration (dual build support)
+│   ├── gradlew                          # Gradle wrapper (Unix)
+│   ├── gradlew.bat                      # Gradle wrapper (Windows)
+│   ├── simple-sse-test.ps1              # Simple SSE testing script
+│   ├── simple-test.ps1                  # Simple functionality test
+│   ├── test-endpoints.ps1               # Endpoint testing script
+│   ├── test-mcp-server.ps1              # Comprehensive MCP server test
+│   ├── test-sse.ps1                     # SSE functionality test
 │   ├── gradle/
 │   │   └── wrapper/
+│   │       ├── gradle-wrapper.jar
+│   │       └── gradle-wrapper.properties
 │   ├── src/
 │   │   ├── main/
-│   │   └── test/
-│   └── target/
-│       └── classes/
-│
-├── misoto/                              # Java Spring Boot Implementation
-│   ├── pom.xml
-│   ├── mvnw
-│   ├── mvnw.cmd
-│   ├── README.md
-│   ├── CLI-README.md
-│   ├── AGENT_MODE_README.md
-│   ├── AGENT_IMPLEMENTATION_COMPLETE.md
-│   ├── MCP_CONFIG_MIGRATION_COMPLETED.md
-│   ├── MCP_MULTI_SERVER_COMPLETION.md
-│   ├── misoto.log
-│   ├── backup-config.json
-│   ├── claude-code.bat
-│   ├── claude-code.ps1
-│   ├── test-*.txt                       # Test conversation files
-│   │
-│   ├── scripts/                         # Startup and utility scripts
-│   │   ├── README.md
-│   │   ├── build-and-run.bat
-│   │   ├── build-and-run.ps1
-│   │   ├── run.bat
-│   │   ├── run.ps1
-│   │   ├── start-agent-chat.bat         # Agent mode startup scripts
-│   │   ├── start-agent-chat.ps1
-│   │   ├── start-agent-chat.sh
-│   │   └── test-*.ps1                   # Various test scripts
-│   │
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/sg/edu/nus/iss/misoto/
-│   │   │   │   ├── MisotoApplication.java        # Main Spring Boot application
-│   │   │   │   └── cli/
-│   │   │   │       ├── agent/                    # **NEW: Agent system**
-│   │   │   │       │   ├── AgentService.java     # Main agent orchestrator
-│   │   │   │       │   ├── commands/
-│   │   │   │       │   │   └── AgentCommands.java
-│   │   │   │       │   ├── config/
-│   │   │   │       │   │   ├── AgentConfiguration.java
-│   │   │   │       │   │   └── AgentSystemConfiguration.java
-│   │   │   │       │   ├── decision/
-│   │   │   │       │   │   └── DecisionEngine.java
-│   │   │   │       │   ├── monitoring/
-│   │   │   │       │   │   └── MonitoringService.java
-│   │   │   │       │   ├── state/
-│   │   │   │       │   │   └── AgentStateManager.java
-│   │   │   │       │   └── task/
-│   │   │   │       │       ├── AgentTask.java
-│   │   │   │       │       ├── TaskExecutorService.java
-│   │   │   │       │       └── TaskQueueService.java
-│   │   │   │       ├── ai/                       # AI client integration
-│   │   │   │       │   └── AiClient.java
-│   │   │   │       ├── auth/                     # Authentication
-│   │   │   │       │   ├── AuthManager.java
-│   │   │   │       │   └── TokenManager.java
-│   │   │   │       ├── codebase/                 # Code analysis
-│   │   │   │       │   └── CodebaseAnalyzer.java
-│   │   │   │       ├── commands/                 # CLI command system
-│   │   │   │       │   ├── Command.java
-│   │   │   │       │   ├── CommandContext.java
-│   │   │   │       │   ├── CommandRegistrationService.java
-│   │   │   │       │   └── impl/
-│   │   │   │       │       ├── ChatCommand.java      # **Enhanced with agent mode**
-│   │   │   │       │       ├── InfoCommand.java      # **Enhanced with agent status**
-│   │   │   │       │       ├── McpCommand.java       # **Fixed argument parsing**
-│   │   │   │       │       ├── AuthCommand.java
-│   │   │   │       │       ├── CodebaseCommand.java
-│   │   │   │       │       ├── ExecuteCommand.java
-│   │   │   │       │       ├── HelpCommand.java
-│   │   │   │       │       └── SearchCommand.java
-│   │   │   │       ├── config/                   # Configuration management
-│   │   │   │       │   ├── ApplicationConfig.java
-│   │   │   │       │   ├── ConfigManager.java
-│   │   │   │       │   ├── DotenvConfiguration.java
-│   │   │   │       │   ├── ExecutionConfiguration.java
-│   │   │   │       │   ├── LogLevel.java
-│   │   │   │       │   └── TerminalTheme.java
-│   │   │   │       ├── errors/                   # Error handling
-│   │   │   │       │   ├── ErrorFormatter.java
-│   │   │   │       │   └── UserError.java
-│   │   │   │       ├── execution/                # Code execution
-│   │   │   │       │   └── ExecutionEnvironment.java
-│   │   │   │       ├── fileops/                  # File operations
-│   │   │   │       │   ├── CopyOptions.java
-│   │   │   │       │   ├── FileOperations.java
-│   │   │   │       │   ├── FindOptions.java
-│   │   │   │       │   └── WriteOptions.java
-│   │   │   │       ├── fs/                       # File system utilities
-│   │   │   │       │   └── PathUtil.java
-│   │   │   │       ├── mcp/                      # **Model Context Protocol**
-│   │   │   │       │   ├── client/
-│   │   │   │       │   │   ├── McpClient.java         # **Enhanced with SSE/WebSocket**
-│   │   │   │       │   │   └── McpClientNew.java
-│   │   │   │       │   ├── config/
-│   │   │   │       │   │   ├── McpCliOptions.java
-│   │   │   │       │   │   ├── McpConfiguration.java
-│   │   │   │       │   │   ├── McpConfigurationLoader.java
-│   │   │   │       │   │   └── McpConfigurationService.java
-│   │   │   │       │   ├── manager/
-│   │   │   │       │   │   └── McpServerManager.java  # **Enhanced multi-server support**
-│   │   │   │       │   ├── model/
-│   │   │   │       │   │   ├── McpResource.java
-│   │   │   │       │   │   ├── McpTool.java
-│   │   │   │       │   │   ├── McpToolCall.java
-│   │   │   │       │   │   └── McpToolResult.java
-│   │   │   │       │   └── protocol/
-│   │   │   │       │       ├── McpError.java
-│   │   │   │       │       ├── McpMessage.java
-│   │   │   │       │       ├── McpNotification.java
-│   │   │   │       │       ├── McpRequest.java
-│   │   │   │       │       └── McpResponse.java
-│   │   │   │       ├── telemetry/                # Usage analytics
-│   │   │   │       │   ├── TelemetryEventType.java
-│   │   │   │       │   └── TelemetryService.java
-│   │   │   │       ├── terminal/                 # Terminal interface
-│   │   │   │       │   ├── Terminal.java
-│   │   │   │       │   ├── TerminalConfig.java
-│   │   │   │       │   └── TerminalInterface.java
-│   │   │   │       └── utils/                    # Utility classes
-│   │   │   │           ├── AsyncUtil.java
-│   │   │   │           ├── FormattingUtil.java    # **Enhanced chat formatting**
-│   │   │   │           ├── LoggerUtil.java
-│   │   │   │           ├── TypeUtil.java
-│   │   │   │           ├── UtilityModule.java
-│   │   │   │           └── ValidationUtil.java
+│   │   │   ├── java/sg/edu/nus/iss/mcp/server/
+│   │   │   │   ├── McpServerApplication.java     # Main application
+│   │   │   │   ├── cli/
+│   │   │   │   │   └── McpServerCli.java
+│   │   │   │   ├── config/
+│   │   │   │   │   ├── McpWebSocketHandler.java
+│   │   │   │   │   └── WebSocketConfig.java
+│   │   │   │   ├── controller/
+│   │   │   │   │   └── McpController.java
+│   │   │   │   ├── example/
+│   │   │   │   │   └── SseClientExample.java
+│   │   │   │   ├── model/
+│   │   │   │   │   ├── McpResource.java
+│   │   │   │   │   ├── McpTool.java
+│   │   │   │   │   └── McpToolResult.java
+│   │   │   │   ├── protocol/
+│   │   │   │   │   ├── McpError.java
+│   │   │   │   │   ├── McpMessage.java
+│   │   │   │   │   ├── McpNotification.java
+│   │   │   │   │   ├── McpRequest.java
+│   │   │   │   │   └── McpResponse.java
+│   │   │   │   └── service/
+│   │   │   │       ├── SseService.java
+│   │   │   │       └── ToolService.java
 │   │   │   └── resources/
-│   │   │       ├── application.properties         # **Updated with agent configs**
-│   │   │       └── application-test.properties    # **Updated logging config**
+│   │   │       └── application.properties
 │   │   └── test/
-│   │       └── java/sg/edu/nus/iss/misoto/
-│   │           ├── MisotoApplicationTests.java
-│   │           └── cli/
-│   │               ├── agent/
-│   │               │   ├── AgentSystemIntegrationTest.java
-│   │               │   └── AgentSystemIntegrationTest_FIXED.java
-│   │               ├── auth/
-│   │               │   └── AuthManagerTest.java
-│   │               ├── codebase/
-│   │               │   └── CodebaseAnalyzerTest.java
-│   │               ├── config/
-│   │               │   ├── ApplicationConfigTest.java
-│   │               │   └── ConfigManagerTest.java
-│   │               ├── fileops/
-│   │               │   └── FileOperationsTest.java
-│   │               ├── telemetry/
-│   │               │   └── TelemetryServiceTest.java
-│   │               └── utils/
-│   │                   ├── FormattingUtilTest.java
-│   │                   ├── UtilityModuleTest.java
-│   │                   └── ValidationUtilTest.java
-│   └── target/
-│       ├── misoto-0.0.1-SNAPSHOT.jar
-│       ├── classes/
-│       ├── generated-sources/
-│       ├── maven-archiver/
-│       └── test-classes/
+│   │       └── java/sg/edu/nus/iss/mcp/server/
+│   │           └── McpServerApplicationTests.java
+│   └── target/                          # Build output directory
 │
-└── specs/                               # Documentation and specifications
-    ├── architecture.md
-    ├── command_reference.md
-    ├── development.md
-    ├── error_handling.md
-    ├── features.md
-    ├── index.md
-    ├── installation.md
-    ├── integration.md
-    ├── LICENSE.md
-    ├── overview.md
-    └── performance.md
+├── scripts/                             # Build and execution scripts
+│   ├── README.md                        # Scripts documentation
+│   ├── build-and-run.bat               # Windows build and run script
+│   ├── build-and-run.ps1               # PowerShell build and run script
+│   ├── claude-code.bat                 # Windows CLI wrapper
+│   ├── claude-code.ps1                 # PowerShell CLI wrapper
+│   ├── run.bat                         # Windows run script
+│   ├── run.ps1                         # PowerShell run script
+│   ├── start-agent-chat.bat            # Windows agent mode startup
+│   ├── start-agent-chat.ps1            # PowerShell agent mode startup
+│   ├── start-agent-chat.sh             # Unix agent mode startup
+│   ├── quick_plan_test.sh              # Planning system test
+│   ├── test-agent-mode.ps1             # Agent mode testing
+│   ├── test-agent-mode.sh              # Unix agent mode testing
+│   ├── test-mcp-config-migration.ps1   # MCP config migration test
+│   ├── test-mcp-integration.ps1        # MCP integration testing
+│   ├── test-mcp-multi-server.ps1       # Multi-server MCP testing
+│   ├── test-mcp-multi-server-fixed.ps1 # Fixed multi-server testing
+│   ├── test-mcp-multi-server-simple.ps1# Simple multi-server testing
+│   ├── test-task-execution.py          # Task execution testing
+│   ├── test-*.txt                      # Agent conversation test files
+│   ├── test_*.java                     # Java test files
+│   ├── test_*.md                       # Test documentation
+│   └── unknown                         # Unknown file type
+│
+├── src/                                 # Main Java Spring Boot Implementation
+│   ├── main/
+│   │   ├── java/sg/edu/nus/iss/misoto/
+│   │   │   ├── MisotoApplication.java           # Main Spring Boot application with MCP preprocessing
+│   │   │   └── cli/
+│   │   │       ├── ClaudeCli.java               # Main CLI entry point and command parser
+│   │       ├── agent/                           # Agent System (Autonomous operation)
+│   │   │       │   ├── AgentService.java            # Main agent orchestrator
+│   │   │       │   ├── commands/
+│   │   │       │   │   └── AgentCommands.java       # CLI commands for agent control
+│   │   │       │   ├── config/
+│   │   │       │   │   ├── AgentConfiguration.java  # Agent configuration
+│   │   │       │   │   └── AgentSystemConfiguration.java # Spring configuration
+│   │   │       │   ├── decision/
+│   │   │       │   │   ├── DecisionEngine.java      # AI-powered decision making
+│   │   │       │   │   └── DecisionTypes.java       # Decision type definitions
+│   │   │       │   ├── monitoring/
+│   │   │       │   │   └── MonitoringService.java   # Resource and file monitoring
+│   │   │       │   ├── planning/                    # ReAct Planning System
+│   │   │       │   │   ├── ActionResult.java        # Planning action results
+│   │   │       │   │   ├── ActionSpec.java          # Action specifications
+│   │   │       │   │   ├── ExecutionPlan.java       # Execution plan management
+│   │   │       │   │   ├── ExecutionStep.java       # Individual execution steps
+│   │   │       │   │   ├── PlanExecution.java       # Plan execution logic
+│   │   │       │   │   ├── PlanningService.java     # Main planning service
+│   │   │       │   │   ├── PlanningStrategy.java    # Planning strategies
+│   │   │       │   │   ├── ReActCycleResult.java    # ReAct cycle results
+│   │   │       │   │   └── SubTask.java             # Subtask definitions
+│   │   │       │   ├── state/
+│   │   │       │   │   ├── AgentStateManager.java   # Persistent state management
+│   │   │       │   │   └── AgentStateSnapshot.java  # State snapshots
+│   │   │       │   └── task/
+│   │   │       │       ├── AgentTask.java           # Task definitions
+│   │   │       │       ├── TaskExecutorService.java # Task execution
+│   │   │       │       ├── TaskQueueService.java    # Task queue management
+│   │   │       │       └── TaskQueueStats.java      # Queue statistics
+│   │   │       ├── ai/                             # AI Integration
+│   │   │       │   ├── AiClient.java               # Claude AI client
+│   │   │       │   └── provider/                   # AI Provider System
+│   │   │       │       ├── AiProvider.java         # Provider interface
+│   │   │       │       ├── AiProviderManager.java  # Provider management
+│   │   │       │       ├── AiResponse.java         # Response wrapper
+│   │   │       │       ├── AiUsage.java            # Usage tracking
+│   │   │       │       ├── ChatMessage.java        # Message structure
+│   │   │       │       ├── ProviderCapabilities.java # Provider capabilities
+│   │   │       │       ├── ProviderStatus.java     # Provider status
+│   │   │       │       └── impl/
+│   │   │       │           ├── AnthropicProvider.java # Anthropic Claude integration
+│   │   │       │           └── OllamaProvider.java   # Ollama local AI integration
+│   │   │       ├── auth/                           # Authentication System
+│   │   │       │   └── AuthManager.java            # Token-based authentication
+│   │   │       ├── codebase/                       # Code Analysis
+│   │   │       │   ├── CodebaseAnalyzer.java       # Main analyzer
+│   │   │       │   ├── DependencyInfo.java         # Dependency information
+│   │   │       │   ├── FileInfo.java               # File metadata
+│   │   │       │   ├── FileSearchOptions.java      # Search configuration
+│   │   │       │   ├── FileSearchResult.java       # Search results
+│   │   │       │   └── ProjectStructure.java       # Project structure analysis
+│   │   │       ├── commands/                       # CLI Command System
+│   │   │       │   ├── Command.java                # Command interface
+│   │   │       │   ├── CommandExecutor.java        # Command execution service
+│   │   │       │   ├── CommandRegistrationService.java # Command registration
+│   │   │       │   ├── CommandRegistry.java        # Command registry
+│   │   │       │   └── impl/                       # Command implementations
+│   │   │       │       ├── AnalyzeCommand.java     # Code analysis command
+│   │   │       │       ├── AskCommand.java         # AI question command
+│   │   │       │       ├── ChatCommand.java        # Interactive chat with agent support
+│   │   │       │       ├── ExplainCommand.java     # Code explanation command
+│   │   │       │       ├── InfoCommand.java        # System information with agent status
+│   │   │       │       ├── LoginCommand.java       # Authentication login
+│   │   │       │       ├── LogoutCommand.java      # Authentication logout
+│   │   │       │       ├── McpCommand.java         # MCP management with fixed parsing
+│   │   │       │       ├── ProviderCommand.java    # AI provider management
+│   │   │       │       └── StatusCommand.java      # System status
+│   │   │       ├── config/                         # Configuration Management
+│   │   │       │   ├── ApplicationConfig.java      # Main application configuration
+│   │   │       │   ├── ConfigManager.java          # Configuration management
+│   │   │       │   ├── DotenvConfiguration.java    # Environment variable configuration
+│   │   │       │   ├── DotenvLoader.java           # .env file loader
+│   │   │       │   ├── ExecutionConfiguration.java # Execution settings
+│   │   │       │   ├── LogLevel.java               # Logging levels
+│   │   │       │   ├── ReactorConfiguration.java   # Reactor configuration
+│   │   │       │   └── TerminalTheme.java          # Terminal theming
+│   │   │       ├── errors/                         # Error Handling
+│   │   │       │   ├── ErrorFormatter.java         # Error formatting for display
+│   │   │       │   └── UserError.java              # User-facing error type
+│   │   │       ├── execution/                      # Code Execution
+│   │   │       │   └── ExecutionEnvironment.java   # Execution environment management
+│   │   │       ├── fileops/                        # File Operations
+│   │   │       │   ├── CopyOptions.java            # Copy operation configuration
+│   │   │       │   ├── FileOperations.java         # File operation utilities
+│   │   │       │   ├── FindOptions.java            # Find operation configuration
+│   │   │       │   └── WriteOptions.java           # Write operation configuration
+│   │   │       ├── mcp/                            # Model Context Protocol
+│   │   │       │   ├── client/
+│   │   │       │   │   ├── McpClient.java          # Enhanced MCP client with SSE/WebSocket
+│   │   │       │   │   └── McpClientNew.java       # New MCP client implementation
+│   │   │       │   ├── config/
+│   │   │       │   │   ├── McpCliOptions.java      # CLI options for MCP
+│   │   │       │   │   ├── McpConfiguration.java   # MCP configuration
+│   │   │       │   │   ├── McpConfigurationLoader.java # Configuration loader
+│   │   │       │   │   └── McpConfigurationService.java # Configuration service
+│   │   │       │   ├── manager/
+│   │   │       │   │   └── McpServerManager.java   # Enhanced multi-server support
+│   │   │       │   ├── model/
+│   │   │       │   │   ├── McpResource.java        # MCP resource definitions
+│   │   │       │   │   ├── McpTool.java            # MCP tool definitions
+│   │   │       │   │   ├── McpToolCall.java        # Tool call structures
+│   │   │       │   │   └── McpToolResult.java      # Tool result structures
+│   │   │       │   └── protocol/
+│   │   │       │       ├── McpError.java           # MCP error handling
+│   │   │       │       ├── McpMessage.java         # Message structures
+│   │   │       │       ├── McpNotification.java    # Notification handling
+│   │   │       │       ├── McpRequest.java         # Request structures
+│   │   │       │       └── McpResponse.java        # Response structures
+│   │   │       ├── telemetry/                      # Usage Analytics
+│   │   │       │   ├── TelemetryEventType.java     # Event type definitions
+│   │   │       │   └── TelemetryService.java       # Telemetry collection service
+│   │   │       ├── terminal/                       # Terminal Interface
+│   │   │       │   ├── Terminal.java               # Terminal utilities
+│   │   │       │   ├── TerminalConfig.java         # Terminal configuration
+│   │   │       │   └── TerminalInterface.java      # Terminal interface
+│   │   │       └── utils/                          # Utility Classes
+│   │   │           ├── AsyncUtil.java              # Async operation utilities
+│   │   │           ├── FormattingUtil.java         # Enhanced chat formatting
+│   │   │           ├── LoggerUtil.java             # Logging utilities
+│   │   │           ├── TypeUtil.java               # Type utilities
+│   │   │           ├── UtilityModule.java          # Utility module
+│   │   │           └── ValidationUtil.java         # Validation utilities
+│   │   └── resources/
+│   │       ├── META-INF/
+│   │       │   └── spring.factories                # Spring factory configuration
+│   │       ├── application.properties              # Updated with agent and MCP configs
+│   │       └── mcp.json                            # MCP server configurations
+│   └── test/
+│       ├── java/sg/edu/nus/iss/misoto/
+│       │   ├── MisotoApplicationTests.java          # Main application tests
+│       │   └── cli/
+│       │       ├── agent/                          # Agent System Tests
+│       │       │   ├── AgentSystemIntegrationTest.java # Agent integration tests
+│       │       │   ├── AgentSystemIntegrationTest_FIXED.java # Fixed integration tests
+│       │       │   └── test/
+│       │       │       └── TaskExecutionFixTest.java # Task execution fix tests
+│       │       ├── auth/                           # Authentication Tests
+│       │       │   └── AuthManagerTest.java        # Authentication manager tests
+│       │       ├── codebase/                       # Codebase Analysis Tests
+│       │       │   └── CodebaseAnalyzerTest.java   # Codebase analyzer tests
+│       │       ├── config/                         # Configuration Tests
+│       │       │   ├── ApplicationConfigTest.java  # Application config tests
+│       │       │   └── ConfigManagerTest.java      # Config manager tests
+│       │       ├── fileops/                        # File Operations Tests
+│       │       │   └── FileOperationsTest.java     # File operations tests
+│       │       ├── telemetry/                      # Telemetry Tests
+│       │       │   └── TelemetryServiceTest.java   # Telemetry service tests
+│       │       └── utils/                          # Utility Tests
+│       │           ├── FormattingUtilTest.java     # Formatting utility tests
+│       │           ├── UtilityModuleTest.java      # Utility module tests
+│       │           └── ValidationUtilTest.java     # Validation utility tests
+│       └── resources/
+│           └── application-test.properties         # Test configuration properties
+│
+└── target/                              # Build Output Directory
+    ├── classes/                         # Compiled classes
+    ├── generated-sources/               # Generated source files
+    ├── maven-archiver/                  # Maven archiver files
+    ├── test-classes/                    # Compiled test classes
+    └── task-execution-test-summary.json # Test execution summary
 ```
 
-## Recent Major Changes and Additions
+## Major System Components (Current as of June 17, 2025)
 
-### 🤖 Agent System (NEW)
-- **AgentService.java**: Main orchestrator for autonomous behavior with configurable shutdown timeouts
-- **AgentConfiguration.java**: Configuration with performance optimizations (5s shutdown, 3s monitoring timeout)
-- **AgentSystemConfiguration.java**: Spring configuration with property injection
-- **MonitoringService.java**: File system and resource monitoring with optimized shutdown
-- **TaskQueueService.java**: Asynchronous task management
-- **DecisionEngine.java**: AI-powered decision making
-- **AgentCommands.java**: CLI integration for agent control
+### 🤖 Agent System
+Complete autonomous operation system with:
+- **AgentService.java**: Main orchestrator with optimized shutdown (5s timeout)
+- **Planning System**: ReAct-based planning with task decomposition
+- **Task Management**: Priority-based queue with CRITICAL, HIGH, NORMAL, LOW levels
+- **Decision Engine**: AI-powered autonomous decision making
+- **State Management**: Persistent state across sessions
+- **Multiple Modes**: INTERACTIVE, AUTONOMOUS, SUPERVISED, MANUAL
 
-### 💬 Enhanced Chat System
-- **ChatCommand.java**: 
-  - Added `/agent` command for interactive agent control
-  - Token usage tracking with `/usage` and `/cost` commands
-  - Improved UI with session summaries
-  - Agent mode integration with proper exit handling
+### 🔗 MCP (Model Context Protocol) Integration
+Multi-server support with enhanced capabilities:
+- **Multi-server Configuration**: Priority-ordered server connections
+- **WebSocket + SSE Support**: Dual connection protocols
+- **JSON Configuration**: Standalone mcp.json config system
+- **Enhanced Tool Support**: Fixed argument parsing for proper tool execution
+- **CLI Management**: Complete mcp command with subcommands
 
-### 🔧 MCP (Model Context Protocol) Improvements
-- **McpCommand.java**: Fixed argument parsing for tool calls (echo now works correctly)
-- **McpServerManager.java**: Enhanced multi-server support
-- **McpClient.java**: Added SSE and WebSocket connectivity
+### 🧠 AI Provider System
+Flexible AI integration supporting multiple providers:
+- **Anthropic Provider**: Primary Claude AI integration via Spring AI
+- **Ollama Provider**: Local AI model support
+- **Provider Management**: Automatic failover and load balancing
+- **Usage Tracking**: Token usage and cost monitoring
+- **Capability Detection**: Dynamic feature detection per provider
 
-### 📊 Performance Optimizations
-- **Reduced shutdown timeouts**: Agent (5s) and Monitoring (3s) for faster CLI exit
-- **Configurable timeouts**: Via application.properties
-- **Improved logging**: Less verbose output for better user experience
+### 🔧 Configuration Management
+Comprehensive configuration system:
+- **Multi-source Configuration**: Environment variables, .env files, JSON configs
+- **Agent Configuration**: Timeout settings, execution intervals, task limits
+- **MCP Configuration**: Server definitions, connection settings, tool mappings
+- **Runtime Configuration**: Dynamic configuration updates
 
-### 🚀 Startup Scripts
-- **start-agent-chat.ps1/.sh/.bat**: Quick agent mode startup scripts
-- **Enhanced build scripts**: Streamlined development workflow
+## Key Documentation Files
 
----
+| Category | File | Status | Description |
+|----------|------|---------|-------------|
+| **Core** | README.md | ✅ Updated | Main documentation with comprehensive tables |
+| **Development** | CLAUDE.md | ✅ Current | Build commands, architecture, development guide |
+| **Features** | AGENT_MODE_README.md | ✅ Complete | Agent system architecture and usage |
+| **Features** | PLANNING_SYSTEM_README.md | ✅ Complete | ReAct planning system documentation |
+| **Migration** | PORTING_DOCUMENTATION.md | ✅ Complete | TypeScript to Java port documentation |
+| **Status** | AGENT_IMPLEMENTATION_COMPLETE.md | ✅ Complete | Agent implementation completion |
+| **Status** | MCP_CONFIG_MIGRATION_COMPLETED.md | ✅ Complete | MCP configuration migration |
+| **Status** | MCP_MULTI_SERVER_COMPLETION.md | ✅ Complete | Multi-server MCP support |
+| **Status** | PARAMETER_VALIDATION_ENHANCEMENT_COMPLETE.md | ✅ Complete | Parameter validation enhancements |
+| **Tracking** | PROJECT_STRUCTURE_UPDATED.md | ✅ Current | This file - complete project structure |
+| **Inventory** | MARKDOWN_FILES_INVENTORY.md | ✅ Current | Complete listing of all markdown files |
 
-## Configuration Properties (Updated)
+## Current Configuration Properties
 
 ```properties
-# Agent Mode Configuration (NEW/UPDATED)
+# Agent System Configuration
 misoto.agent.mode.enabled=${MISOTO_AGENT_MODE:false}
 misoto.agent.max-concurrent-tasks=${MISOTO_AGENT_MAX_TASKS:3}
 misoto.agent.execution-interval-ms=${MISOTO_AGENT_INTERVAL:5000}
 misoto.agent.shutdown.timeout-seconds=${MISOTO_AGENT_SHUTDOWN_TIMEOUT:5}
 misoto.agent.monitoring.shutdown.timeout-seconds=${MISOTO_AGENT_MONITORING_SHUTDOWN_TIMEOUT:3}
+
+# AI Provider Configuration
+spring.ai.anthropic.api-key=${ANTHROPIC_API_KEY}
+spring.ai.anthropic.chat.model=claude-3-sonnet-20240229
+spring.ai.anthropic.chat.temperature=0.7
+spring.ai.anthropic.chat.max-tokens=4000
+
+# MCP Configuration (via mcp.json)
+# Configuration directory: ~/.misoto/ or project root
 
 # Performance Optimized Logging
 logging.level.sg.edu.nus.iss.misoto.cli=WARN
@@ -320,23 +342,29 @@ logging.level.sg.edu.nus.iss.misoto.cli.mcp=WARN
 logging.level.root=WARN
 ```
 
-## Key Features Status
+## System Status
 
-✅ **Completed:**
-- Agent mode with chat integration
-- MCP tool argument parsing fix
-- Performance optimizations (fast exit)
-- Token usage tracking
-- Multi-MCP server support
-- Agent state management
-- Interactive agent commands
-- Startup scripts for agent mode
+### ✅ Completed Features
+- **Agent System**: Full autonomous operation with planning
+- **MCP Integration**: Multi-server support with WebSocket/SSE
+- **AI Providers**: Anthropic Claude + Ollama local AI
+- **Configuration**: Comprehensive multi-source config system
+- **CLI Commands**: Complete command set with help system
+- **Testing**: Unit and integration test suites
+- **Documentation**: Comprehensive documentation system
+- **Build System**: Maven-based with PowerShell/Batch scripts
 
-🔄 **In Progress:**
-- MCP tool call verification testing
-- Advanced agent decision making
-- Resource monitoring enhancements
+### 🎯 Current Capabilities
+- Interactive chat with agent integration
+- Autonomous task execution and planning
+- Multi-server MCP tool execution
+- Code analysis and explanation
+- File operations and project analysis
+- Token usage tracking and cost monitoring
+- Cross-platform script support (Windows/Unix)
 
 ---
 
-*Last updated: June 15, 2025*
+*Last updated: June 17, 2025*  
+*Total Files: 100+ Java classes, 15+ markdown documentation files*  
+*Architecture: Spring Boot 3.5 + Spring AI + Custom Agent System*

@@ -107,6 +107,9 @@ public class TaskExecutorService {
     // File Operations
     private AgentTask.TaskResult executeFileRead(AgentTask task) throws IOException {
         String filePath = (String) task.getParameters().get("file_path");
+        
+        // Print the file operation
+        System.out.println("🤖 Agent reading file: " + filePath);
         if (filePath == null || filePath.trim().isEmpty()) {
             throw new IllegalArgumentException("file_path parameter is required and cannot be empty");
         }
@@ -128,6 +131,9 @@ public class TaskExecutorService {
     private AgentTask.TaskResult executeFileWrite(AgentTask task) throws IOException {
         String filePath = (String) task.getParameters().get("file_path");
         String content = (String) task.getParameters().get("content");
+        
+        // Print the file operation
+        System.out.println("🤖 Agent writing file: " + filePath);
         boolean append = (Boolean) task.getParameters().getOrDefault("append", false);
         
         if (filePath == null || filePath.trim().isEmpty()) {
@@ -159,6 +165,9 @@ public class TaskExecutorService {
         String sourcePath = (String) task.getParameters().get("source_path");
         String targetPath = (String) task.getParameters().get("target_path");
         
+        // Print the file operation
+        System.out.println("🤖 Agent copying file: " + sourcePath + " → " + targetPath);
+        
         if (sourcePath == null || sourcePath.trim().isEmpty()) {
             throw new IllegalArgumentException("source_path parameter is required and cannot be empty");
         }
@@ -181,6 +190,9 @@ public class TaskExecutorService {
     
     private AgentTask.TaskResult executeFileDelete(AgentTask task) throws IOException {
         String filePath = (String) task.getParameters().get("file_path");
+        
+        // Print the file operation
+        System.out.println("🤖 Agent deleting file: " + filePath);
         
         if (filePath == null || filePath.trim().isEmpty()) {
             throw new IllegalArgumentException("file_path parameter is required and cannot be empty");
@@ -234,6 +246,11 @@ public class TaskExecutorService {
             throw new IllegalArgumentException("command parameter is required and cannot be empty");
         }
         
+        // Print the command that will be executed
+        String workingDirDisplay = workingDir != null ? " (in: " + workingDir + ")" : "";
+        System.out.println("🤖 Agent executing command" + workingDirDisplay + ": " + command);
+        log.info("Agent executing shell command: {} in directory: {}", command, workingDir);
+        
         ExecutionEnvironment.ExecutionOptions options = new ExecutionEnvironment.ExecutionOptions();
         if (workingDir != null) {
             // Use reflection or alternative method if setWorkingDirectory doesn't exist
@@ -261,6 +278,13 @@ public class TaskExecutorService {
         if (scriptContent == null || scriptContent.trim().isEmpty()) {
             throw new IllegalArgumentException("script_content parameter is required and cannot be empty");
         }
+        
+        // Print the script that will be executed
+        System.out.println("🤖 Agent executing " + scriptType + " script:");
+        System.out.println("┌─────────────────────────────────────");
+        System.out.println(scriptContent.lines().map(line -> "│ " + line).collect(java.util.stream.Collectors.joining("\n")));
+        System.out.println("└─────────────────────────────────────");
+        log.info("Agent executing {} script with content: {}", scriptType, scriptContent);
         
         // Create temporary script file
         Path tempScript = Files.createTempFile("agent-script", "." + scriptType);
@@ -540,6 +564,11 @@ public class TaskExecutorService {
         if (toolName == null || toolName.trim().isEmpty()) {
             throw new IllegalArgumentException("tool_name parameter is required and cannot be empty");
         }
+        
+        // Print the MCP tool call that will be executed
+        System.out.println("🤖 Agent calling MCP tool: " + toolName + 
+                          (arguments.isEmpty() ? "" : " with arguments: " + arguments));
+        log.info("Agent executing MCP tool call: {} with arguments: {}", toolName, arguments);
         
         McpToolResult result = mcpServerManager.callTool(toolName, arguments);
         
