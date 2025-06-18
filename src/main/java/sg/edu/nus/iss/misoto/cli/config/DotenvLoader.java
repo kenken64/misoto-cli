@@ -45,8 +45,18 @@ public class DotenvLoader {
                 
                 log.debug("Successfully loaded .env file with {} entries", dotenv.entries().size());
                 
+                // Set all dotenv entries as system properties so Spring can resolve them
+                dotenv.entries().forEach(entry -> {
+                    if (System.getProperty(entry.getKey()) == null) {
+                        System.setProperty(entry.getKey(), entry.getValue());
+                        log.debug("Set system property: {} = {}", entry.getKey(), 
+                            entry.getKey().contains("KEY") || entry.getKey().contains("TOKEN") ? "***" : entry.getValue());
+                    }
+                });
+                
                 // Log which important keys were found (without values)
                 logKeyPresence("ANTHROPIC_API_KEY");
+                logKeyPresence("ANTHROPIC_MODEL");
                 logKeyPresence("CLAUDE_API_URL");
                 logKeyPresence("CLAUDE_LOG_LEVEL");
                 

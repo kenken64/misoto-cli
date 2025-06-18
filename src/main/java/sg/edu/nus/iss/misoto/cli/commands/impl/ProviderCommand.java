@@ -216,6 +216,9 @@ public class ProviderCommand implements Command {
             return;
         }
         
+        // Force provider initialization by checking availability
+        currentProvider.isAvailable();
+        
         System.out.println(FormattingUtil.formatWithColor("Current Provider: " + currentProvider.getDisplayName(), FormattingUtil.ANSI_WHITE + FormattingUtil.ANSI_BOLD));
         System.out.println(FormattingUtil.formatWithColor("Provider Name: " + currentProvider.getProviderName(), FormattingUtil.ANSI_WHITE));
         System.out.println(FormattingUtil.formatWithColor("Current Model: " + currentProvider.getCurrentModel(), FormattingUtil.ANSI_WHITE));

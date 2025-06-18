@@ -9,7 +9,9 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import jakarta.annotation.PostConstruct;
 import sg.edu.nus.iss.misoto.cli.ai.provider.*;
 
 import java.util.ArrayList;
@@ -27,7 +29,15 @@ public class AnthropicProvider implements AiProvider {
     @Autowired(required = false)
     private AnthropicChatModel anthropicChatModel;
     
-    private String currentModel = "claude-3-haiku-20240307";
+    @Value("${spring.ai.anthropic.chat.model:claude-3-haiku-20240307}")
+    private String currentModel;
+    
+    @PostConstruct
+    public void logCurrentModel() {
+        log.info("AnthropicProvider initialized with model: {}", currentModel);
+        log.info("System property ANTHROPIC_MODEL: {}", System.getProperty("ANTHROPIC_MODEL"));
+        log.info("Environment variable ANTHROPIC_MODEL: {}", System.getenv("ANTHROPIC_MODEL"));
+    }
     private AiUsage lastUsage;
     private boolean initialized = false;
     
@@ -147,7 +157,8 @@ public class AnthropicProvider implements AiProvider {
             "claude-3-haiku-20240307",
             "claude-3-sonnet-20240229", 
             "claude-3-opus-20240229",
-            "claude-sonnet-4-20250514"
+            "claude-sonnet-4-20250514",
+            "claude-opus-4-20250514"
         );
     }
     

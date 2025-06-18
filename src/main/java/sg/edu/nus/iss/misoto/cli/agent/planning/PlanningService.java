@@ -611,6 +611,15 @@ public class PlanningService {
             case FILE_WRITE -> {
                 if (!enhanced.containsKey("file_path") || enhanced.get("file_path") == null) {
                     enhanced.put("file_path", "./generated_file.txt");
+                } else {
+                    // Sanitize file path to ensure it's writable
+                    String filePath = enhanced.get("file_path").toString();
+                    if (filePath.startsWith("/path/to/") || !isValidWritablePath(filePath)) {
+                        // Replace invalid paths with safe alternatives
+                        String sanitizedPath = sanitizeFilePath(filePath, description);
+                        enhanced.put("file_path", sanitizedPath);
+                        log.warn("Sanitized invalid file path '{}' to '{}'", filePath, sanitizedPath);
+                    }
                 }
                 if (!enhanced.containsKey("content") || enhanced.get("content") == null) {
                     enhanced.put("content", "Generated content from: " + description);
@@ -635,6 +644,53 @@ public class PlanningService {
         }
         
         return enhanced;
+    }
+    
+    private boolean isValidWritablePath(String filePath) {
+        // Check for common invalid path patterns
+        if (filePath == null || filePath.trim().isEmpty()) {
+            return false;
+        }
+        
+        // Check for placeholder paths
+        if (filePath.startsWith("/path/to/") || 
+            filePath.startsWith("/example/") ||
+            filePath.equals("/dev/null") ||
+            filePath.startsWith("/tmp/nonexistent/") ||
+            filePath.startsWith("/usr/") ||
+            filePath.startsWith("/System/")) {
+            return false;
+        }
+        
+        // Check if path is reasonable (not in system directories)
+        return !filePath.startsWith("/bin/") && 
+               !filePath.startsWith("/sbin/") && 
+               !filePath.startsWith("/etc/");
+    }
+    
+    private String sanitizeFilePath(String originalPath, String description) {
+        // Extract filename from the original path
+        String filename = originalPath.substring(originalPath.lastIndexOf('/') + 1);
+        
+        // If no filename or invalid filename, generate one from description
+        if (filename.isEmpty() || filename.equals("*") || filename.equals("?")) {
+            if (description.toLowerCase().contains("sql") || originalPath.toLowerCase().contains("sql")) {
+                filename = "todoApp.sql";
+            } else if (description.toLowerCase().contains("todo")) {
+                filename = "todoApp.txt";
+            } else if (description.toLowerCase().contains("database")) {
+                filename = "database.sql";
+            } else {
+                String extension = "";
+                if (originalPath.contains(".")) {
+                    extension = originalPath.substring(originalPath.lastIndexOf('.'));
+                }
+                filename = "generated_file" + extension;
+            }
+        }
+        
+        // Return a safe path in current directory
+        return "./" + filename;
     }
     
     private String extractCommandFromDescription(String description) {

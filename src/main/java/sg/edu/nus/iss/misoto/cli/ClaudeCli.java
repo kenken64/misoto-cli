@@ -14,6 +14,7 @@ import sg.edu.nus.iss.misoto.cli.errors.UserError;
 import sg.edu.nus.iss.misoto.cli.errors.ErrorFormatter;
 import sg.edu.nus.iss.misoto.cli.telemetry.TelemetryService;
 import sg.edu.nus.iss.misoto.cli.telemetry.TelemetryEventType;
+import sg.edu.nus.iss.misoto.cli.agent.AgentService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Arrays;
@@ -56,6 +57,9 @@ public class ClaudeCli implements CommandLineRunner {
     
     @Autowired
     private TelemetryService telemetryService;
+    
+    @Autowired(required = false)
+    private AgentService agentService;
     
     @Override
     public void run(String... args) throws Exception {
@@ -157,10 +161,85 @@ public class ClaudeCli implements CommandLineRunner {
             handleError(error);
         } finally {
             // Shutdown services gracefully
+            if (agentService != null && agentService.isRunning()) {
+                showAgentShutdownProgress();
+            }
+            
             if (telemetryService != null) {
                 telemetryService.shutdown();
             }
         }
+    }
+
+    /**
+     * Show animated progress bar for agent shutdown
+     */
+    private void showAgentShutdownProgress() {
+        final int barWidth = 40;
+        final String greenBar = "\u001B[42m \u001B[0m";  // Green background
+        final String grayBar = "\u001B[100m \u001B[0m";   // Gray background
+        final String yellow = "\u001B[33m";
+        final String green = "\u001B[32m";
+        final String red = "\u001B[31m";
+        final String reset = "\u001B[0m";
+        
+        System.out.print(yellow + "Preset: agent_shutdown " + reset);
+        System.out.flush();
+        
+        long startTime = System.currentTimeMillis();
+        agentService.stopAgent();
+        
+        // Always animate progress bar from 0 to 100%
+        int totalSteps = 100; // 100 steps for smooth animation
+        for (int i = 0; i <= totalSteps; i++) {
+            // Calculate progress
+            int progress = (i * barWidth) / totalSteps;
+            int percentage = i;
+            long elapsed = System.currentTimeMillis() - startTime;
+            
+            // Clear line and redraw
+            System.out.print("\r" + yellow + "Preset: agent_shutdown " + reset);
+            
+            // Draw progress bar
+            for (int j = 0; j < barWidth; j++) {
+                if (j < progress) {
+                    System.out.print(greenBar);
+                } else {
+                    System.out.print(grayBar);
+                }
+            }
+            
+            // Calculate ETA
+            String eta;
+            if (i == 0) {
+                eta = "calculating";
+            } else if (i == totalSteps) {
+                eta = "complete";
+            } else {
+                long avgTimePerStep = elapsed / i;
+                long remainingSteps = totalSteps - i;
+                long etaMs = remainingSteps * avgTimePerStep;
+                eta = etaMs + "ms";
+            }
+            
+            // Show completion when done
+            if (i == totalSteps) {
+                System.out.print(" " + green + percentage + "%" + reset + " | ETA: " + eta + " | " + elapsed + "ms");
+            } else {
+                System.out.print(" " + percentage + "% | ETA: " + eta + " | " + elapsed + "ms");
+            }
+            System.out.flush();
+            
+            // Delay between updates
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        
+        System.out.println(); // New line after completion
     }
 
     /**
