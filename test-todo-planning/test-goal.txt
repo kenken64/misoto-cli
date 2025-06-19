@@ -1,0 +1,1 @@
+Create a todo application where the frontend is written in React framework, backend is written in Node.js Express.js then store the todo information to SQLite database
