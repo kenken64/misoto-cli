@@ -39,7 +39,9 @@ public class ExecutionEnvironment {
         Pattern.compile("^\\s*:(\\s*)\\{(\\s*):(\\s*)\\|(\\s*):(\\s*)&(\\s*)\\}(\\s*);", Pattern.CASE_INSENSITIVE), // Fork bomb
         Pattern.compile("^\\s*sudo\\s+rm\\s+", Pattern.CASE_INSENSITIVE),
         Pattern.compile("^\\s*format\\s+[a-z]:", Pattern.CASE_INSENSITIVE), // Windows format command
-        Pattern.compile("^\\s*del\\s+/[sq]\\s+", Pattern.CASE_INSENSITIVE) // Windows recursive delete
+        Pattern.compile("^\\s*del\\s+/[sq]\\s+", Pattern.CASE_INSENSITIVE), // Windows recursive delete
+        Pattern.compile("^```[^`]*```$", Pattern.CASE_INSENSITIVE), // Block commands that are just code blocks
+        Pattern.compile("^```\\s*$", Pattern.CASE_INSENSITIVE) // Block empty code blocks
     );
     
     public ExecutionEnvironment(ExecutionConfig config) {
@@ -284,7 +286,7 @@ public class ExecutionEnvironment {
             processBuilder = new ProcessBuilder("cmd.exe", "/c", command);
         } else {
             String shell = options.getShell() != null ? options.getShell() : 
-                          (config.getShell() != null ? config.getShell() : "/bin/bash");
+                          (config.getShell() != null ? config.getShell() : getDefaultShell());
             processBuilder = new ProcessBuilder(shell, "-c", command);
         }
         
@@ -305,6 +307,24 @@ public class ExecutionEnvironment {
         }
         
         return processBuilder;
+    }
+    
+    /**
+     * Get the default shell based on the operating system
+     */
+    private String getDefaultShell() {
+        String os = System.getProperty("os.name").toLowerCase();
+        
+        if (os.contains("mac")) {
+            // macOS uses zsh as default since macOS Catalina (10.15)
+            return "/bin/zsh";
+        } else if (os.contains("linux")) {
+            // Linux typically uses bash
+            return "/bin/bash";
+        } else {
+            // Fallback to bash for other Unix-like systems
+            return "/bin/bash";
+        }
     }
     
     private String readProcessOutput(Process process, ExecutionOptions options) throws IOException {

@@ -253,31 +253,42 @@ public class PlanningService {
         
         // Determine action type based on reasoning
         String actionPrompt = String.format("""
-            Based on your reasoning:
+            Based on your reasoning analysis above, you need to take ONE SPECIFIC ACTION now.
+            
+            REASONING CONTEXT:
             %s
             
-            Now decide on a specific action to take. Respond EXACTLY in this format:
+            CURRENT SUBTASK: %s
+            SUBTASK GOAL: %s
+            
+            Choose the MOST APPROPRIATE action type for this specific subtask and provide exact parameters.
+            
+            Respond EXACTLY in this format:
             ACTION_TYPE: [FILE_READ|FILE_WRITE|FILE_COPY|FILE_DELETE|SHELL_COMMAND|CODE_GENERATION|AI_ANALYSIS|MCP_TOOL_CALL]
-            ACTION_DESCRIPTION: A clear description of what you're doing
-            PARAMETERS: param1=value1, param2=value2
-            EXPECTED_OUTCOME: What you expect to happen
+            ACTION_DESCRIPTION: [Specific description of what THIS action accomplishes for THIS subtask]
+            PARAMETERS: [exact parameters needed for this action]
+            EXPECTED_OUTCOME: [what will be accomplished by THIS specific action]
             
-            CRITICAL: Use these exact parameter names (case-sensitive):
-              - For SHELL_COMMAND: command=mkdir -p todoApp
-              - For FILE_READ: file_path=/path/to/file.txt
-              - For FILE_WRITE: file_path=/path/to/file.txt, content=file content here
-              - For FILE_COPY: source_path=/source/file, target_path=/target/file
-              - For FILE_DELETE: file_path=/path/to/file.txt
-              - For CODE_GENERATION: task_description=what to generate, language=python
-              - For AI_ANALYSIS: task_description=what to analyze, context=analysis context
-              - For MCP_TOOL_CALL: tool_name=tool_name, tool_arguments=arguments
+            PARAMETER FORMATS (use exact parameter names):
+            • SHELL_COMMAND: command=exact_command_to_run, working_directory=path
+            • FILE_WRITE: file_path=exact/path/to/file.ext, content=complete_file_content
+            • FILE_READ: file_path=exact/path/to/file.ext
+            • CODE_GENERATION: task_description=specific_code_to_generate, language=programming_language
+            • AI_ANALYSIS: task_description=what_to_analyze, context=analysis_context
             
-            Example for creating a directory:
-            ACTION_TYPE: SHELL_COMMAND
-            ACTION_DESCRIPTION: Creating project directory structure for the Todo app
-            PARAMETERS: command=mkdir -p todoApp/frontend todoApp/backend, working_directory=.
-            EXPECTED_OUTCOME: Directory structure will be created
-            """, reasoning);
+            IMPORTANT RULES:
+            1. Choose action type that directly accomplishes the current subtask goal
+            2. For file creation: Use FILE_WRITE with complete file content
+            3. For directory creation: Use SHELL_COMMAND with mkdir commands
+            4. For dependency installation: Use SHELL_COMMAND with npm/pip/etc commands
+            5. Be specific - avoid generic descriptions
+            6. Ensure parameters are complete and executable
+            7. DO NOT use code blocks (```) in your response - provide plain text only
+            8. For commands: provide the exact command without any formatting
+            9. For file content: provide complete code without markdown formatting
+            
+            Take action NOW for subtask: %s
+            """, reasoning, subTask.getId(), subTask.getDescription(), subTask.getDescription());
         
         log.debug("Action decision prompt: {}", actionPrompt);
         String actionResponse = aiClient.sendMessage(actionPrompt);
@@ -368,20 +379,42 @@ public class PlanningService {
     private boolean evaluateSuccess(SubTask subTask, ActionResult actionResult, String observation) throws Exception {
         log.info("🔬 ReAct Phase: SELF-REFLECTION for subtask {}", subTask.getId());
         
+        // Add detailed logging for debugging
+        log.debug("Evaluating success for subtask: {}", subTask.getDescription());
+        log.debug("Action was successful: {}", actionResult.isSuccess());
+        log.debug("Action description: {}", actionResult.getActionDescription());
+        if (actionResult.getResult() != null) {
+            log.debug("Action output: {}", actionResult.getResult().getOutput());
+            log.debug("Files created: {}", actionResult.getResult().getFilesCreated());
+        }
+        
         String evaluationPrompt = String.format("""
             Evaluate if this subtask has been completed successfully:
             
-            SUBTASK: %s
+            SUBTASK GOAL: %s
             EXPECTED OUTCOME: %s
             
-            ACTION RESULT: %s
+            ACTION TAKEN: %s
+            ACTION SUCCESS: %s
+            ACTION OUTPUT: %s
+            
             OBSERVATION: %s
             
-            Has this subtask been completed successfully? Respond with YES or NO and brief reasoning.
+            Consider:
+            1. Did the action execute without errors?
+            2. Does the output match the expected outcome?
+            3. Was the subtask goal actually accomplished?
+            4. Are there any files created or commands executed as expected?
+            
+            Respond with YES or NO followed by your reasoning:
+            - YES if the subtask goal was accomplished and the action succeeded
+            - NO if there were errors, missing outputs, or the goal wasn't met
             """,
             subTask.getDescription(),
             subTask.getExpectedOutcome(),
             actionResult.getActionDescription(),
+            actionResult.isSuccess() ? "SUCCESS" : "FAILED",
+            actionResult.getResult() != null ? actionResult.getResult().getOutput() : "No output",
             observation
         );
         
@@ -389,8 +422,23 @@ public class PlanningService {
         String response = aiClient.sendMessage(evaluationPrompt);
         log.info("✅ AI Success Evaluation: {}", response);
         
-        boolean success = response.toLowerCase().contains("yes");
-        log.info("📊 Subtask {} evaluated as: {}", subTask.getId(), success ? "SUCCESS" : "NEEDS MORE WORK");
+        boolean success = response.toLowerCase().contains("yes") && actionResult.isSuccess();
+        log.info("📊 Subtask {} evaluated as: {} (Action success: {}, AI evaluation: {})", 
+            subTask.getId(), 
+            success ? "SUCCESS" : "NEEDS MORE WORK",
+            actionResult.isSuccess(),
+            response.toLowerCase().contains("yes") ? "YES" : "NO"
+        );
+        
+        // If the subtask failed, print detailed failure information
+        if (!success) {
+            System.out.println("❌ Subtask Failed - " + subTask.getDescription());
+            System.out.println("   Action Success: " + actionResult.isSuccess());
+            System.out.println("   AI Evaluation: " + (response.toLowerCase().contains("yes") ? "YES" : "NO"));
+            if (actionResult.getResult() != null && actionResult.getResult().getOutput() != null) {
+                System.out.println("   Output: " + actionResult.getResult().getOutput());
+            }
+        }
         
         return success;
     }
@@ -451,6 +499,66 @@ public class PlanningService {
         return String.format("""
             You are an AI agent capable of breaking down complex development goals into comprehensive, executable step-by-step plans.
             Your job is to create a detailed execution plan that matches the quality and completeness of professional development tutorials.
+            
+            **GRANULAR TASK SEPARATION REQUIREMENTS:**
+            
+            You MUST separate different types of actions into individual subtasks:
+            
+            1. **TERMINAL COMMAND TASKS**: Each command or set of related commands gets its own subtask
+               - Project initialization (mkdir, cd commands)
+               - Dependency installation (npm install, pip install)
+               - Build/compilation commands
+               - Test execution commands
+               
+            2. **FILE CREATION/EDITING TASKS**: Each file creation or modification gets its own subtask
+               - Creating configuration files (package.json, pom.xml)
+               - Creating source code files (server.js, App.js, database.js)
+               - Creating styling files (App.css, styles.css)
+               - Creating documentation files
+               
+            3. **VERIFICATION TASKS**: Testing and validation get separate subtasks
+               - Running tests
+               - Manual verification steps
+               - Health checks
+            
+            **EXAMPLES OF PROPER TASK SEPARATION:**
+            
+            ❌ WRONG (Combined):
+            SUBTASK_1:
+            Description: Set up backend project with Node.js and install dependencies
+            Commands: 
+            mkdir todo-app-backend
+            cd todo-app-backend
+            npm init -y
+            npm install express sqlite3 cors
+            
+            ✅ CORRECT (Separated):
+            SUBTASK_1:
+            Description: Initialize backend project directory structure
+            Commands: 
+            mkdir -p todo-app-backend
+            cd todo-app-backend
+            
+            SUBTASK_2:
+            Description: Initialize Node.js package configuration
+            Commands:
+            npm init -y
+            
+            SUBTASK_3:
+            Description: Install backend dependencies
+            Commands:
+            npm install express sqlite3 cors body-parser
+            npm install -D nodemon
+            
+            SUBTASK_4:
+            Description: Create database setup file
+            File Path: todo-app-backend/database.js
+            File Content: [Complete database.js code]
+            
+            SUBTASK_5:
+            Description: Create Express server file
+            File Path: todo-app-backend/server.js
+            File Content: [Complete server.js code]
             
             GOAL: %s
             CONTEXT: %s
@@ -598,8 +706,33 @@ public class PlanningService {
             - Include proper API documentation in comments
             
             **DECOMPOSITION TARGET:**
-            Break the goal into 5-12 comprehensive subtasks that together create a complete, working application.
-            Each subtask should be substantial enough to create meaningful progress toward the goal.
+            Break the goal into 12-20 granular subtasks that together create a complete, working application.
+            Each subtask should be focused on ONE specific action (either a command OR a file operation).
+            
+            **GRANULAR SUBTASK GUIDELINES:**
+            
+            For a React + Node.js + SQLite todo app, you should create subtasks like:
+            
+            1. Initialize backend project directory
+            2. Initialize Node.js package (npm init)
+            3. Install Express dependencies
+            4. Install SQLite dependencies
+            5. Install development dependencies (nodemon)
+            6. Create database setup file (database.js)
+            7. Create Express server file (server.js)
+            8. Initialize React frontend project
+            9. Install React dependencies (axios)
+            10. Create main App component file
+            11. Create CSS styling file
+            12. Create additional React components
+            13. Test backend endpoints
+            14. Test frontend-backend integration
+            15. Final application verification
+            
+            Each subtask should have EITHER:
+            - Commands: for terminal operations
+            - File Path + File Content: for source code files
+            - Expected Outcome: for verification tasks
             
             Now create a comprehensive, tutorial-quality plan for this goal: %s
             """, goal, context.toString(), System.getProperty("user.dir"), directoryAnalysis, fileAnalysis, technologyTemplate, goal);
@@ -626,32 +759,58 @@ public class PlanningService {
     private List<SubTask> parseSubTasksFromResponse(String response) {
         List<SubTask> subTasks = new ArrayList<>();
         
+        log.debug("Parsing subtasks from AI response:");
+        log.debug("Response length: {} characters", response.length());
+        log.debug("Response preview: {}", response.length() > 500 ? response.substring(0, 500) + "..." : response);
+        
         // Simple parsing implementation - in production would use more robust parsing
         String[] blocks = response.split("SUBTASK_");
+        log.debug("Found {} potential subtask blocks", blocks.length - 1);
         
         for (int i = 1; i < blocks.length; i++) {
             String block = blocks[i];
+            log.debug("Processing subtask block {}: {}", i, block.length() > 200 ? block.substring(0, 200) + "..." : block);
             SubTask subTask = parseSubTaskBlock(block, i);
+            log.info("Created subtask {}: {}", i, subTask.getName());
             subTasks.add(subTask);
         }
         
+        log.info("Successfully parsed {} subtasks", subTasks.size());
         return subTasks;
     }
     
     private SubTask parseSubTaskBlock(String block, int index) {
-        Map<String, String> fields = parseFields(block);
+        Map<String, String> fields = parseSubTaskFields(block);
         
         // Extract description and create a meaningful name
         String description = fields.getOrDefault("Description", "AI-generated subtask #" + index);
         String name = extractTaskName(description, index);
         
+        // Parse priority with error handling
+        SubTask.Priority priority;
+        try {
+            priority = SubTask.Priority.valueOf(fields.getOrDefault("Priority", "MEDIUM"));
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid priority '{}', defaulting to MEDIUM", fields.get("Priority"));
+            priority = SubTask.Priority.MEDIUM;
+        }
+        
+        // Parse complexity with error handling
+        SubTask.Complexity complexity;
+        try {
+            complexity = SubTask.Complexity.valueOf(fields.getOrDefault("Complexity", "MODERATE"));
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid complexity '{}', defaulting to MODERATE", fields.get("Complexity"));
+            complexity = SubTask.Complexity.MODERATE;
+        }
+
         SubTask subTask = SubTask.builder()
             .id("subtask-" + index)
             .name(name)
             .description(description)
             .expectedOutcome(fields.getOrDefault("Expected Outcome", ""))
-            .priority(SubTask.Priority.valueOf(fields.getOrDefault("Priority", "MEDIUM")))
-            .complexity(SubTask.Complexity.valueOf(fields.getOrDefault("Complexity", "MODERATE")))
+            .priority(priority)
+            .complexity(complexity)
             .dependencies(parseList(fields.getOrDefault("Dependencies", "NONE")))
             .status(SubTask.Status.PENDING)
             .commands(parseCommandList(fields.getOrDefault("Commands", "NONE")))
@@ -702,19 +861,97 @@ public class PlanningService {
         return description;
     }
     
+    /**
+     * Parse fields from action specification responses
+     */
     private Map<String, String> parseFields(String block) {
         Map<String, String> fields = new HashMap<>();
         String[] lines = block.split("\n");
         
+        String currentField = null;
+        StringBuilder currentValue = new StringBuilder();
+        
         for (String line : lines) {
-            if (line.contains(":")) {
+            if (line.contains(":") && (line.startsWith("ACTION_TYPE:") || 
+                                     line.startsWith("ACTION_DESCRIPTION:") || 
+                                     line.startsWith("PARAMETERS:") || 
+                                     line.startsWith("EXPECTED_OUTCOME:"))) {
+                // Save previous field if exists
+                if (currentField != null) {
+                    fields.put(currentField, currentValue.toString().trim());
+                }
+                
+                // Start new field
                 String[] parts = line.split(":", 2);
                 if (parts.length == 2) {
-                    fields.put(parts[0].trim(), parts[1].trim());
+                    currentField = parts[0].trim();
+                    currentValue = new StringBuilder(parts[1].trim());
                 }
+            } else if (currentField != null && !line.trim().isEmpty()) {
+                // Continue multi-line field
+                if (currentValue.length() > 0) {
+                    currentValue.append("\n");
+                }
+                currentValue.append(line.trim());
             }
         }
         
+        // Save last field
+        if (currentField != null) {
+            fields.put(currentField, currentValue.toString().trim());
+        }
+        
+        return fields;
+    }
+    
+    /**
+     * Parse fields from subtask specification responses
+     */
+    private Map<String, String> parseSubTaskFields(String block) {
+        Map<String, String> fields = new HashMap<>();
+        String[] lines = block.split("\n");
+        
+        String currentField = null;
+        StringBuilder currentValue = new StringBuilder();
+        
+        for (String line : lines) {
+            // Check for subtask field patterns
+            if (line.contains(":") && (line.startsWith("Description:") || 
+                                     line.startsWith("Expected Outcome:") || 
+                                     line.startsWith("Priority:") || 
+                                     line.startsWith("Complexity:") ||
+                                     line.startsWith("Dependencies:") ||
+                                     line.startsWith("Commands:") ||
+                                     line.startsWith("Code Language:") ||
+                                     line.startsWith("Code Content:") ||
+                                     line.startsWith("File Path:") ||
+                                     line.startsWith("File Content:"))) {
+                // Save previous field if exists
+                if (currentField != null) {
+                    fields.put(currentField, currentValue.toString().trim());
+                }
+                
+                // Start new field
+                String[] parts = line.split(":", 2);
+                if (parts.length == 2) {
+                    currentField = parts[0].trim();
+                    currentValue = new StringBuilder(parts[1].trim());
+                }
+            } else if (currentField != null && !line.trim().isEmpty()) {
+                // Continue multi-line field
+                if (currentValue.length() > 0) {
+                    currentValue.append("\n");
+                }
+                currentValue.append(line.trim());
+            }
+        }
+        
+        // Save last field
+        if (currentField != null) {
+            fields.put(currentField, currentValue.toString().trim());
+        }
+        
+        log.debug("Parsed subtask fields: {}", fields);
         return fields;
     }
     
@@ -755,13 +992,33 @@ public class PlanningService {
     private ActionSpec parseActionSpec(String response) {
         Map<String, String> fields = parseFields(response);
         Map<String, Object> parameters = parseParameters(fields.getOrDefault("PARAMETERS", ""));
-        AgentTask.TaskType taskType = AgentTask.TaskType.valueOf(fields.getOrDefault("ACTION_TYPE", "AI_ANALYSIS"));
+        
+        // Parse task type with error handling
+        AgentTask.TaskType taskType;
+        String actionTypeStr = fields.getOrDefault("ACTION_TYPE", "AI_ANALYSIS");
+        try {
+            taskType = AgentTask.TaskType.valueOf(actionTypeStr);
+        } catch (IllegalArgumentException e) {
+            log.warn("Unknown action type '{}', defaulting to AI_ANALYSIS", actionTypeStr);
+            taskType = AgentTask.TaskType.AI_ANALYSIS;
+        }
         
         // Print command if it's a shell command and we have the command parameter
         if (taskType == AgentTask.TaskType.SHELL_COMMAND && parameters.containsKey("command")) {
             String command = (String) parameters.get("command");
             if (command != null && !command.trim().isEmpty()) {
                 System.out.println("🤖 Agent plans to execute: " + command);
+            }
+        }
+        
+        // Print file operation if it's file-related
+        if ((taskType == AgentTask.TaskType.FILE_WRITE || taskType == AgentTask.TaskType.FILE_READ) 
+            && parameters.containsKey("file_path")) {
+            String filePath = (String) parameters.get("file_path");
+            if (filePath != null && !filePath.trim().isEmpty()) {
+                System.out.println("📁 Agent plans to " + 
+                    (taskType == AgentTask.TaskType.FILE_WRITE ? "create/write" : "read") + 
+                    " file: " + filePath);
             }
         }
         
@@ -775,27 +1032,135 @@ public class PlanningService {
     
     private Map<String, Object> parseParameters(String params) {
         Map<String, Object> paramMap = new HashMap<>();
-        if (!params.isEmpty()) {
-            log.debug("Parsing parameters: {}", params);
-            String[] pairs = params.split(",");
-            for (String pair : pairs) {
-                String[] kv = pair.split("=", 2);
-                if (kv.length == 2) {
-                    String key = kv[0].trim();
-                    String value = kv[1].trim();
-                    // Remove quotes if present
-                    if (value.startsWith("\"") && value.endsWith("\"")) {
-                        value = value.substring(1, value.length() - 1);
-                    }
-                    paramMap.put(key, value);
-                    log.debug("  Parameter: {} = {}", key, value);
-                } else {
-                    log.warn("Skipping malformed parameter pair: {}", pair);
+        if (params == null || params.trim().isEmpty()) {
+            log.debug("Parameters string is null or empty");
+            return paramMap;
+        }
+        
+        String originalParams = params;
+        
+        // Clean up code blocks and other formatting artifacts
+        params = cleanParameterString(params);
+        
+        log.debug("Parsing parameters - Original: '{}', Cleaned: '{}'", originalParams, params);
+        
+        // Try different parsing strategies
+        
+        // Strategy 1: Look for key=value pattern with flexible value matching
+        String pattern = "([^=\\s]+)\\s*=\\s*(.*)";
+        java.util.regex.Pattern regexPattern = java.util.regex.Pattern.compile(pattern);
+        java.util.regex.Matcher matcher = regexPattern.matcher(params);
+        
+        if (matcher.find()) {
+            String key = matcher.group(1).trim();
+            String value = matcher.group(2).trim();
+            
+            // Remove surrounding quotes if present
+            if (value.startsWith("\"") && value.endsWith("\"")) {
+                value = value.substring(1, value.length() - 1);
+            }
+            
+            // For command parameters, be more careful with cleaning
+            if ("command".equals(key)) {
+                // Only remove outer code blocks for commands, preserve the command content
+                value = cleanCommandValue(value);
+            } else {
+                value = cleanParameterString(value);
+            }
+            
+            paramMap.put(key, value);
+            log.debug("  Parameter (Strategy 1): {} = '{}'", key, value);
+        }
+        
+        // Fallback: if regex didn't work, try simple parsing but be smarter about it
+        if (paramMap.isEmpty()) {
+            log.debug("Strategy 1 failed, trying fallback parsing");
+            // Look for the first = sign and treat everything after it as the value
+            int equalsIndex = params.indexOf('=');
+            if (equalsIndex > 0) {
+                String key = params.substring(0, equalsIndex).trim();
+                String value = params.substring(equalsIndex + 1).trim();
+                
+                // Remove quotes if present
+                if (value.startsWith("\"") && value.endsWith("\"")) {
+                    value = value.substring(1, value.length() - 1);
                 }
+                
+                // For command parameters, be more careful with cleaning
+                if ("command".equals(key)) {
+                    value = cleanCommandValue(value);
+                } else {
+                    value = cleanParameterString(value);
+                }
+                
+                paramMap.put(key, value);
+                log.debug("  Fallback parameter: {} = '{}'", key, value);
+            } else {
+                log.warn("Could not parse parameters: '{}'", params);
             }
         }
+        
         log.debug("Parsed parameters: {}", paramMap);
         return paramMap;
+    }
+    
+    /**
+     * Clean parameter strings by removing code blocks and formatting artifacts
+     */
+    private String cleanParameterString(String params) {
+        if (params == null) {
+            return "";
+        }
+        
+        // Remove code blocks (``` at start and end)
+        params = params.replaceAll("^```[a-zA-Z]*\\s*", "").replaceAll("```\\s*$", "");
+        
+        // Remove single backticks
+        params = params.replace("`", "");
+        
+        // Remove any remaining triple backticks that might be embedded
+        params = params.replaceAll("```", "");
+        
+        // Clean up multiple whitespace and newlines
+        params = params.replaceAll("\\s+", " ");
+        
+        // Remove common markdown artifacts
+        params = params.replaceAll("^\\s*-\\s*", ""); // Remove list markers
+        params = params.replaceAll("^\\s*\\*\\s*", ""); // Remove bullet points
+        
+        // Trim
+        params = params.trim();
+        
+        log.debug("Cleaned parameters from '{}' to '{}'", params, params);
+        return params;
+    }
+    
+    /**
+     * Clean command values more carefully - preserve command content but remove formatting
+     */
+    private String cleanCommandValue(String command) {
+        if (command == null) {
+            return "";
+        }
+        
+        String original = command;
+        
+        // Remove code blocks (``` at start and end) but preserve the command
+        command = command.replaceAll("^```[a-zA-Z]*\\s*", "").replaceAll("```\\s*$", "");
+        
+        // Remove single backticks only if they wrap the entire command
+        if (command.startsWith("`") && command.endsWith("`") && command.length() > 2) {
+            command = command.substring(1, command.length() - 1);
+        }
+        
+        // Clean up excess whitespace but preserve necessary spaces in commands
+        command = command.replaceAll("\\s+", " ");
+        command = command.trim();
+        
+        // Don't remove other content that might be part of the command
+        
+        log.debug("Cleaned command from '{}' to '{}'", original, command);
+        return command;
     }
     
     private AgentTask createTaskFromAction(SubTask subTask, ActionSpec actionSpec) {
@@ -1590,7 +1955,8 @@ public class PlanningService {
             if (isWindows()) {
                 pb.command("cmd", "/c", checkCommand);
             } else {
-                pb.command("sh", "-c", checkCommand);
+                String shell = getDefaultShell();
+                pb.command(shell, "-c", checkCommand);
             }
             
             Process process = pb.start();
@@ -1737,6 +2103,24 @@ public class PlanningService {
      */
     private boolean isWindows() {
         return System.getProperty("os.name").toLowerCase().contains("windows");
+    }
+    
+    /**
+     * Get the default shell based on the operating system
+     */
+    private String getDefaultShell() {
+        String os = System.getProperty("os.name").toLowerCase();
+        
+        if (os.contains("mac")) {
+            // macOS uses zsh as default since macOS Catalina (10.15)
+            return "/bin/zsh";
+        } else if (os.contains("linux")) {
+            // Linux typically uses bash
+            return "/bin/bash";
+        } else {
+            // Fallback to bash for other Unix-like systems
+            return "/bin/bash";
+        }
     }
     
     /**
@@ -1975,15 +2359,38 @@ public class PlanningService {
                 Backend: express, sqlite3, cors, body-parser, nodemon (dev)
                 Frontend: react, axios, react-dom, react-scripts
                 
-                **EXECUTION STEPS:**
-                1. Backend project initialization and dependencies
-                2. Database setup and schema creation
-                3. Express server with all API endpoints
-                4. Frontend React project setup
-                5. React components and state management
-                6. API integration with error handling
-                7. CSS styling and responsive design
-                8. Testing and validation
+                **GRANULAR EXECUTION STEPS (15-20 Individual Tasks):**
+                
+                **BACKEND SETUP (Tasks 1-7):**
+                1. Create backend project directory
+                2. Initialize npm package (npm init -y)
+                3. Install Express dependencies
+                4. Install SQLite dependencies  
+                5. Install development dependencies (nodemon)
+                6. Create database.js file with schema
+                7. Create server.js file with all CRUD endpoints
+                
+                **FRONTEND SETUP (Tasks 8-13):**
+                8. Create React app with create-react-app
+                9. Install Axios for API communication
+                10. Create main App.js component
+                11. Create App.css with responsive styling
+                12. Create TodoItem component
+                13. Create EditTodoForm component
+                
+                **INTEGRATION & TESTING (Tasks 14-18):**
+                14. Test backend API endpoints
+                15. Test frontend-backend integration
+                16. Test CRUD operations end-to-end
+                17. Verify responsive design
+                18. Final application validation
+                
+                **TASK TYPE GUIDELINES:**
+                - Directory/npm commands → SHELL_COMMAND tasks
+                - File creation → FILE_WRITE tasks
+                - Testing → AI_ANALYSIS tasks
+                - Each file gets its own individual task
+                - Each command sequence gets its own task
                 """);
         }
         
