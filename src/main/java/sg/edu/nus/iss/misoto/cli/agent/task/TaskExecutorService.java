@@ -8,6 +8,8 @@ import sg.edu.nus.iss.misoto.cli.execution.ExecutionEnvironment;
 import sg.edu.nus.iss.misoto.cli.mcp.manager.McpServerManager;
 import sg.edu.nus.iss.misoto.cli.mcp.model.McpToolResult;
 import sg.edu.nus.iss.misoto.cli.agent.decision.DecisionEngine;
+import sg.edu.nus.iss.misoto.cli.agent.context.FileContextService;
+import sg.edu.nus.iss.misoto.cli.fileops.FileOperations;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,6 +37,12 @@ public class TaskExecutorService {
     
     @Autowired
     private DecisionEngine decisionEngine;
+    
+    @Autowired
+    private FileContextService fileContextService;
+    
+    @Autowired
+    private FileOperations fileOperations;
     
     private final Map<String, Long> runningTasks = new ConcurrentHashMap<>();
     
@@ -132,10 +140,6 @@ public class TaskExecutorService {
         String filePath = (String) task.getParameters().get("file_path");
         String content = (String) task.getParameters().get("content");
         
-        // Print the file operation
-        System.out.println("🤖 Agent writing file: " + filePath);
-        boolean append = (Boolean) task.getParameters().getOrDefault("append", false);
-        
         if (filePath == null || filePath.trim().isEmpty()) {
             throw new IllegalArgumentException("file_path parameter is required and cannot be empty");
         }
@@ -143,22 +147,111 @@ public class TaskExecutorService {
             throw new IllegalArgumentException("content parameter is required and cannot be null");
         }
         
-        Path path = Paths.get(filePath);
-        Files.createDirectories(path.getParent());
+        // Check for context preservation parameters
+        boolean append = (Boolean) task.getParameters().getOrDefault("append", false);
+        boolean preserveContext = (Boolean) task.getParameters().getOrDefault("preserve_context", true);
+        String operationModeStr = (String) task.getParameters().get("operation_mode");
         
-        if (append) {
-            Files.writeString(path, content, java.nio.file.StandardOpenOption.CREATE, 
-                             java.nio.file.StandardOpenOption.APPEND);
+        // Load file context for intelligent writing
+        boolean fileExists = fileOperations.fileExists(filePath);
+        String originalContent = null;
+        String finalContent = content;
+        
+        if (fileExists && preserveContext && !append) {
+            try {
+                originalContent = fileOperations.readTextFile(filePath);
+                
+                // Create a temporary SubTask to use FileContextService
+                var subTask = sg.edu.nus.iss.misoto.cli.agent.planning.SubTask.builder()
+                    .filePath(filePath)
+                    .fileContent(content)
+                    .originalFileContent(originalContent)
+                    .fileExists(true)
+                    .preserveContext(true)
+                    .operationMode(parseOperationMode(operationModeStr, task.getDescription()))
+                    .description(task.getDescription())
+                    .build();
+                
+                // Use FileContextService to merge content intelligently
+                finalContent = fileContextService.mergeContent(subTask);
+                
+                // Create backup before modification
+                fileContextService.createBackup(filePath);
+                
+                System.out.println("🤖 Agent writing file with context preservation: " + filePath);
+                System.out.println("📄 Original content: " + originalContent.length() + " bytes");
+                System.out.println("📝 New content: " + content.length() + " bytes");
+                System.out.println("🔀 Merged content: " + finalContent.length() + " bytes");
+                
+            } catch (Exception e) {
+                log.warn("Failed to load file context for {}, falling back to simple write: {}", filePath, e.getMessage());
+                System.out.println("⚠️  Context preservation failed, using simple write for: " + filePath);
+            }
         } else {
-            Files.writeString(path, content);
+            System.out.println("🤖 Agent writing file: " + filePath);
+        }
+        
+        // Write the file using FileOperations service
+        try {
+            if (append) {
+                fileOperations.appendTextFile(filePath, content);
+            } else {
+                fileOperations.writeTextFile(filePath, finalContent);
+            }
+        } catch (Exception e) {
+            // Fallback to direct file operations if FileOperations fails
+            log.warn("FileOperations failed, using direct write: {}", e.getMessage());
+            Path path = Paths.get(filePath);
+            Files.createDirectories(path.getParent());
+            
+            if (append) {
+                Files.writeString(path, content, java.nio.file.StandardOpenOption.CREATE, 
+                                 java.nio.file.StandardOpenOption.APPEND);
+            } else {
+                Files.writeString(path, finalContent);
+            }
         }
         
         return AgentTask.TaskResult.builder()
-            .output("File written successfully")
-            .filesCreated(append ? List.of() : List.of(filePath))
-            .filesModified(append ? List.of(filePath) : List.of())
-            .artifacts(Map.of("bytes_written", content.length()))
+            .output("File written successfully" + (originalContent != null ? " with context preservation" : ""))
+            .filesCreated(fileExists ? List.of() : List.of(filePath))
+            .filesModified(fileExists ? List.of(filePath) : List.of())
+            .artifacts(Map.of(
+                "bytes_written", finalContent.length(),
+                "original_bytes", originalContent != null ? originalContent.length() : 0,
+                "context_preserved", originalContent != null,
+                "file_existed", fileExists
+            ))
             .build();
+    }
+    
+    /**
+     * Parse operation mode from string or infer from task description
+     */
+    private sg.edu.nus.iss.misoto.cli.agent.planning.SubTask.FileOperationMode parseOperationMode(String operationModeStr, String description) {
+        if (operationModeStr != null) {
+            try {
+                return sg.edu.nus.iss.misoto.cli.agent.planning.SubTask.FileOperationMode.valueOf(operationModeStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                log.debug("Invalid operation mode: {}", operationModeStr);
+            }
+        }
+        
+        // Infer from description
+        if (description != null) {
+            String desc = description.toLowerCase();
+            if (desc.contains("replace") || desc.contains("overwrite")) {
+                return sg.edu.nus.iss.misoto.cli.agent.planning.SubTask.FileOperationMode.REPLACE;
+            }
+            if (desc.contains("append") || desc.contains("add to end")) {
+                return sg.edu.nus.iss.misoto.cli.agent.planning.SubTask.FileOperationMode.APPEND;
+            }
+            if (desc.contains("modify") || desc.contains("update") || desc.contains("edit")) {
+                return sg.edu.nus.iss.misoto.cli.agent.planning.SubTask.FileOperationMode.MODIFY;
+            }
+        }
+        
+        return sg.edu.nus.iss.misoto.cli.agent.planning.SubTask.FileOperationMode.AUTO;
     }
     
     private AgentTask.TaskResult executeFileCopy(AgentTask task) throws IOException {
@@ -342,6 +435,159 @@ public class TaskExecutorService {
             .build();
     }
     
+    /**
+     * Execute code with automatic retry and error fixing
+     */
+    private String executeCodeWithRetryAndFix(String filename, String originalCode, String taskDescription, List<String> commandsExecuted) {
+        final int MAX_RETRY_ATTEMPTS = 3;
+        String currentCode = originalCode;
+        String runOutput = "";
+        
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                log.info("Attempting to execute code (attempt {}/{}): {}", attempt, MAX_RETRY_ATTEMPTS, filename);
+                
+                // Write current code to file
+                Path filePath = Paths.get(filename);
+                Files.writeString(filePath, currentCode);
+                
+                // Try different Python commands (python3, python, py)
+                String[] pythonCommands = {"python3", "python", "py"};
+                ExecutionEnvironment.ExecutionResult result = null;
+                String usedCommand = null;
+                
+                for (String cmd : pythonCommands) {
+                    try {
+                        // First test if the command exists
+                        ExecutionEnvironment.ExecutionOptions testOptions = new ExecutionEnvironment.ExecutionOptions();
+                        testOptions.setTimeout(5000L);
+                        ExecutionEnvironment.ExecutionResult testResult = executionEnvironment.executeCommand(cmd + " --version", testOptions);
+                        
+                        if (testResult.getExitCode() == 0) {
+                            // Python command works, now run the script
+                            ExecutionEnvironment.ExecutionOptions runOptions = new ExecutionEnvironment.ExecutionOptions();
+                            runOptions.setTimeout(30000L);
+                            runOptions.setCwd(System.getProperty("user.dir"));
+                            result = executionEnvironment.executeCommand(cmd + " " + filename, runOptions);
+                            usedCommand = cmd;
+                            break;
+                        }
+                    } catch (Exception e) {
+                        log.debug("Python command '{}' failed: {}", cmd, e.getMessage());
+                    }
+                }
+                
+                if (result == null || usedCommand == null) {
+                    return "\n\nPython script execution skipped: No Python interpreter found in PATH.\n" +
+                           "Please install Python or ensure it's in your system PATH.\n" +
+                           "You can run the script manually with: python " + filename;
+                }
+                
+                // Check if execution was successful
+                if (result.getExitCode() == 0) {
+                    runOutput = String.format("\n\nScript execution successful (attempt %d, using %s):\n%s", 
+                                             attempt, usedCommand, result.getOutput());
+                    commandsExecuted.add(usedCommand + " " + filename + " (successful)");
+                    
+                    if (attempt > 1) {
+                        runOutput += "\n\n✅ Code was automatically fixed and now runs successfully!";
+                    }
+                    
+                    return runOutput;
+                } else {
+                    // Execution failed, try to fix the code
+                    String errorOutput = result.getOutput();
+                    String exitCode = String.valueOf(result.getExitCode());
+                    
+                    log.warn("Code execution failed (attempt {}): Exit code {}, Error: {}", attempt, exitCode, errorOutput);
+                    
+                    if (attempt < MAX_RETRY_ATTEMPTS) {
+                        // Try to fix the code using AI
+                        String fixedCode = fixCodeWithAI(currentCode, errorOutput, taskDescription, attempt);
+                        if (fixedCode != null && !fixedCode.equals(currentCode)) {
+                            currentCode = fixedCode;
+                            runOutput += String.format("\n\n❌ Attempt %d failed (exit code %s): %s\n🔧 Attempting to fix code automatically...", 
+                                                      attempt, exitCode, errorOutput);
+                            continue;
+                        }
+                    }
+                    
+                    runOutput = String.format("\n\nScript execution failed after %d attempts (using %s):\n%s\nExit code: %s\n\n💡 You can run the script manually with: python %s", 
+                                             attempt, usedCommand, errorOutput, exitCode, filename);
+                    commandsExecuted.add(usedCommand + " " + filename + " (failed after " + attempt + " attempts)");
+                    return runOutput;
+                }
+                
+            } catch (Exception e) {
+                log.error("Exception during code execution attempt {}: {}", attempt, e.getMessage());
+                if (attempt == MAX_RETRY_ATTEMPTS) {
+                    runOutput = "\n\nScript execution failed after " + attempt + " attempts: " + e.getMessage() + 
+                              "\nYou can run the script manually with: python " + filename;
+                    return runOutput;
+                }
+            }
+        }
+        
+        return runOutput;
+    }
+    
+    /**
+     * Use AI to fix code based on execution errors
+     */
+    private String fixCodeWithAI(String originalCode, String errorOutput, String taskDescription, int attempt) {
+        try {
+            String fixPrompt = String.format("""
+                The following code failed to execute with an error. Please fix the code to make it work correctly.
+                
+                ORIGINAL TASK: %s
+                
+                CURRENT CODE:
+                ```python
+                %s
+                ```
+                
+                ERROR OUTPUT:
+                %s
+                
+                FIXING ATTEMPT: %d
+                
+                Please analyze the error and provide the corrected code. Common issues to check:
+                1. Syntax errors (missing quotes, colons, parentheses)
+                2. Indentation errors
+                3. Missing imports
+                4. Variable name errors
+                5. Logic errors
+                6. Type errors
+                
+                Respond with ONLY the corrected Python code, no explanations or markdown blocks.
+                Make sure the code is complete and executable.
+                """, taskDescription, originalCode, errorOutput, attempt);
+            
+            String fixedCodeResponse = aiClient.sendMessage(fixPrompt);
+            
+            // Clean up the response - remove any markdown code blocks
+            String fixedCode = fixedCodeResponse.trim();
+            if (fixedCode.startsWith("```python")) {
+                fixedCode = fixedCode.substring(9);
+            }
+            if (fixedCode.startsWith("```")) {
+                fixedCode = fixedCode.substring(3);
+            }
+            if (fixedCode.endsWith("```")) {
+                fixedCode = fixedCode.substring(0, fixedCode.length() - 3);
+            }
+            
+            fixedCode = fixedCode.trim();
+            
+            log.info("AI suggested code fix for attempt {}: {} characters", attempt, fixedCode.length());
+            return fixedCode;
+            
+        } catch (Exception e) {
+            log.error("Failed to generate code fix with AI: {}", e.getMessage());
+            return null;
+        }
+    }
+
     private AgentTask.TaskResult executeCodeGeneration(AgentTask task) throws Exception {
         String taskDescription = (String) task.getParameters().get("task_description");
         String conversationContext = (String) task.getParameters().get("conversation_context");
@@ -410,54 +656,10 @@ public class TaskExecutorService {
             String listOutput = "Files in current directory:\n" + String.join("\n", currentFiles);
             commandsExecuted.add("ls (list current directory)");
             
-            // Try to run the generated code if it's a script
+            // Try to run the generated code if it's a script with automatic error fixing
             String runOutput = "";
             if (language.toLowerCase().contains("python") && filename.endsWith(".py")) {
-                try {
-                    // Try different Python commands (python3, python, py)
-                    String[] pythonCommands = {"python3", "python", "py"};
-                    ExecutionEnvironment.ExecutionResult result = null;
-                    String usedCommand = null;
-                    
-                    for (String cmd : pythonCommands) {
-                        try {
-                            // First test if the command exists
-                            ExecutionEnvironment.ExecutionOptions testOptions = new ExecutionEnvironment.ExecutionOptions();
-                            testOptions.setTimeout(5000L); // 5 second timeout for test
-                            ExecutionEnvironment.ExecutionResult testResult = executionEnvironment.executeCommand(cmd + " --version", testOptions);
-                            
-                            if (testResult.getExitCode() == 0) {
-                                // Python command works, now run the script
-                                ExecutionEnvironment.ExecutionOptions runOptions = new ExecutionEnvironment.ExecutionOptions();
-                                runOptions.setTimeout(30000L); // 30 second timeout for script execution
-                                runOptions.setCwd(System.getProperty("user.dir")); // Set working directory
-                                result = executionEnvironment.executeCommand(cmd + " " + filename, runOptions);
-                                usedCommand = cmd;
-                                break;
-                            }
-                        } catch (Exception e) {
-                            log.debug("Python command '{}' failed: {}", cmd, e.getMessage());
-                            // Continue to next command
-                        }
-                    }
-                    
-                    if (result != null && usedCommand != null) {
-                        runOutput = "\n\nScript execution result (using " + usedCommand + "):\n" + result.getOutput();
-                        commandsExecuted.add(usedCommand + " " + filename);
-                        
-                        // If there was an error, include it
-                        if (result.getExitCode() != 0) {
-                            runOutput += "\nExit code: " + result.getExitCode();
-                        }
-                    } else {
-                        runOutput = "\n\nPython script execution skipped: No Python interpreter found in PATH.\n" +
-                                  "Please install Python or ensure it's in your system PATH.\n" +
-                                  "You can run the script manually with: python " + filename;
-                    }
-                } catch (Exception e) {
-                    runOutput = "\n\nScript execution failed: " + e.getMessage() + 
-                              "\nYou can run the script manually with: python " + filename;
-                }
+                runOutput = executeCodeWithRetryAndFix(filename, code, taskDescription, commandsExecuted);
             } else if (language.toLowerCase().contains("lua") && filename.endsWith(".lua")) {
                 try {
                     ExecutionEnvironment.ExecutionResult result = executionEnvironment.executeCommand("lua " + filename);

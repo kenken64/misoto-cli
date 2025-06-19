@@ -385,6 +385,7 @@ public class MonitoringService {
         try {            AgentTask task = AgentTask.builder()
                 .type(AgentTask.TaskType.valueOf(trigger.getAction().toUpperCase()))
                 .priority(AgentTask.TaskPriority.MEDIUM)
+                .name("Trigger: " + trigger.getName())
                 .description("Triggered by: " + trigger.getName())                .context(createTaskContext(Map.of(
                     "trigger", trigger.getName(),
                     "trigger_type", trigger.getType(),
@@ -475,6 +476,7 @@ public class MonitoringService {
                   // Create a system task to investigate
                 AgentTask healthTask = AgentTask.builder()                    .type(AgentTask.TaskType.SYSTEM)
                     .priority(AgentTask.TaskPriority.HIGH)
+                    .name("Health Check - Stuck Tasks")
                     .description("Health check: investigate stuck tasks")
                     .context(createTaskContext(Map.of(
                         "action", "investigate_stuck_tasks",

@@ -376,6 +376,7 @@ public class McpCommand implements Command {
     }    private void handleToolCall(String[] args) {
         if (args.length < 2) {
             System.err.println("Usage: mcp call <tool-name> [arguments]");
+            System.exit(1);
             return;
         }
         
@@ -390,18 +391,25 @@ public class McpCommand implements Command {
             System.out.println("Tool execution result:");
             if (result.getIsError()) {
                 System.err.println("✗ Tool execution failed:");
+                if (result.getContent() != null) {
+                    for (McpToolResult.ContentItem item : result.getContent()) {
+                        System.err.println("  " + item.getText());
+                    }
+                }
+                System.exit(1);
             } else {
                 System.out.println("✓ Tool executed successfully:");
-            }
-            
-            if (result.getContent() != null) {
-                for (McpToolResult.ContentItem item : result.getContent()) {
-                    System.out.println("  " + item.getText());
+                if (result.getContent() != null) {
+                    for (McpToolResult.ContentItem item : result.getContent()) {
+                        System.out.println("  " + item.getText());
+                    }
                 }
+                System.exit(0);
             }
         } catch (Exception e) {
             log.error("Error calling MCP tool: {}", toolName, e);
             System.err.println("✗ Error calling tool: " + e.getMessage());
+            System.exit(1);
         }
     }
     

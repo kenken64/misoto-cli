@@ -29,7 +29,7 @@ public class AnthropicProvider implements AiProvider {
     @Autowired(required = false)
     private AnthropicChatModel anthropicChatModel;
     
-    @Value("${spring.ai.anthropic.chat.model:claude-3-haiku-20240307}")
+    @Value("${spring.ai.anthropic.chat.model:claude-sonnet-4-20250514}")
     private String currentModel;
     
     @PostConstruct
