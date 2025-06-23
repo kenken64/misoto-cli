@@ -46,23 +46,21 @@ public class TaskQueueService {
         this.config = config;
         this.maxConcurrentTasks = config.getMaxConcurrentTasks();
         
-        // Create thread pools
-        this.executorService = Executors.newFixedThreadPool(
-            maxConcurrentTasks,
-            r -> {
-                Thread t = new Thread(r, "agent-task-executor");
-                t.setDaemon(true);
-                return t;
-            }
+        // Create virtual thread executor for task execution
+        // Virtual threads are lightweight and can handle many concurrent tasks efficiently
+        this.executorService = Executors.newThreadPerTaskExecutor(
+            Thread.ofVirtual()
+                .name("agent-task-", 0)
+                .factory()
         );
         
+        // Use virtual threads for scheduled tasks as well for consistency
+        // Note: For scheduled tasks, we still need a traditional scheduler but can use virtual threads for execution
         this.scheduledExecutor = Executors.newScheduledThreadPool(
             2,
-            r -> {
-                Thread t = new Thread(r, "agent-task-scheduler");
-                t.setDaemon(true);
-                return t;
-            }
+            Thread.ofVirtual()
+                .name("agent-scheduler-", 0)
+                .factory()
         );
         
         // Start task processing
@@ -71,7 +69,7 @@ public class TaskQueueService {
         // Schedule periodic cleanup
         schedulePeriodicCleanup();
         
-        log.info("Task queue service initialized with max concurrent tasks: {}", maxConcurrentTasks);
+        log.info("Task queue service initialized with virtual threads and max concurrent tasks: {}", maxConcurrentTasks);
     }
     
     /**
@@ -235,12 +233,12 @@ public class TaskQueueService {
         
         log.info("Task queue service shutdown");
     }
-    
-    private void startTaskProcessing() {
+     private void startTaskProcessing() {
         running = true;
         
-        // Start task processor threads
-        for (int i = 0; i < maxConcurrentTasks; i++) {
+        // With virtual threads, we can use a more efficient approach
+        // Start fewer task processor threads since virtual threads handle concurrency efficiently
+        for (int i = 0; i < Math.min(maxConcurrentTasks, 3); i++) {
             executorService.submit(this::processTaskQueue);
         }
         
@@ -250,13 +248,14 @@ public class TaskQueueService {
             5, 5, TimeUnit.SECONDS
         );
     }
-    
+
     private void processTaskQueue() {
         while (running) {
             try {
-                // Wait for available slot
-                while (runningTasks.size() >= maxConcurrentTasks && running) {
-                    Thread.sleep(100);
+                // With virtual threads, we can be less strict about the concurrent task limit
+                // Virtual threads are very lightweight, so we allow more flexibility
+                while (runningTasks.size() >= maxConcurrentTasks * 2 && running) {
+                    Thread.sleep(50); // Reduced sleep time for better responsiveness
                 }
                 
                 if (!running) break;
@@ -270,13 +269,15 @@ public class TaskQueueService {
                     continue;
                 }
                 
-                // Execute task
+                // Execute task in a virtual thread for maximum concurrency
                 runningTasks.add(task.getId());
-                try {
-                    executeTask(task);
-                } finally {
-                    runningTasks.remove(task.getId());
-                }
+                executorService.submit(() -> {
+                    try {
+                        executeTask(task);
+                    } finally {
+                        runningTasks.remove(task.getId());
+                    }
+                });
                 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -288,7 +289,9 @@ public class TaskQueueService {
     }
     
     private void executeTask(AgentTask task) {
-        log.info("Executing task: {} [{}]", task.getName(), task.getId());
+        // This method now runs in a virtual thread for improved concurrency and performance
+        log.info("Executing task: {} [{}] in virtual thread: {}", 
+            task.getName(), task.getId(), Thread.currentThread().getName());
         
         task.markStarted();
         stateManager.setState("current_task", task.getId());

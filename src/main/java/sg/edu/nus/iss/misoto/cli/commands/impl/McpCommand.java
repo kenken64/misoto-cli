@@ -162,6 +162,19 @@ public class McpCommand implements Command {
     
     private void handleConfigShow() {
         System.out.println("Current MCP Configuration:");
+        
+        // Show where the configuration is being loaded from
+        String userConfigPath = System.getProperty("user.home") + "/.misoto/mcp.json";
+        boolean userConfigExists = configurationService.configExists(userConfigPath);
+        
+        if (userConfigExists) {
+            System.out.println("📍 Loading from: " + userConfigPath + " (user config)");
+        } else {
+            System.out.println("📍 Loading from: src/main/resources/mcp.json (default - user config not found)");
+            System.out.println("💡 To create user config: mcp config create");
+        }
+        System.out.println();
+        
         McpConfiguration config = configurationService.getCurrentConfiguration();
         
         if (config == null) {
