@@ -1,4 +1,9 @@
 # Claude Code CLI - Java Version (Misoto)
+<div align="center">
+  <img src="logo.jpg" alt="Misoto CLI Logo" width="200" height="200">
+  <h3>AI-Powered Infrastructure Agent System</h3>
+  <p><em>A sophisticated command-line interface for autonomous infrastructure management</em></p>
+</div>
 
 This project contains a Java conversion of the TypeScript Claude Code CLI, integrated into a Spring Boot application with advanced agent capabilities, MCP integration, and autonomous task execution.
 
