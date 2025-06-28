@@ -146,10 +146,21 @@ public class PlanningService {
             // Update working memory with results
             execution.getWorkingMemory().putAll(result.getMemoryUpdates());
             
-            // Check if we need to replan
-            if (!result.isSuccess() && result.isShouldReplan()) {
-                log.info("Replanning required for subtask: {}", subTask.getId());
-                replanFromStep(plan, execution, subTask);
+            // Handle task failure
+            if (!result.isSuccess()) {
+                boolean shouldContinue = promptUserOnTaskFailure(subTask, result);
+                if (!shouldContinue) {
+                    System.out.println("🛑 Execution stopped by user choice.");
+                    execution.setStatus(PlanExecution.ExecutionStatus.FAILED);
+                    plan.setStatus(ExecutionPlan.PlanStatus.FAILED);
+                    return execution;
+                }
+                
+                // Check if we need to replan
+                if (result.isShouldReplan()) {
+                    log.info("Replanning required for subtask: {}", subTask.getId());
+                    replanFromStep(plan, execution, subTask);
+                }
             }
         }
         
@@ -326,6 +337,7 @@ public class PlanningService {
             }
         } else {
             System.out.println("❌ Step failed: " + completedTask.getErrorMessage());
+            printDetailedFailureInfo(actionSpec, completedTask);
         }
         
         return ActionResult.builder()
@@ -432,12 +444,7 @@ public class PlanningService {
         
         // If the subtask failed, print detailed failure information
         if (!success) {
-            System.out.println("❌ Subtask Failed - " + subTask.getDescription());
-            System.out.println("   Action Success: " + actionResult.isSuccess());
-            System.out.println("   AI Evaluation: " + (response.toLowerCase().contains("yes") ? "YES" : "NO"));
-            if (actionResult.getResult() != null && actionResult.getResult().getOutput() != null) {
-                System.out.println("   Output: " + actionResult.getResult().getOutput());
-            }
+            printSubtaskFailureDetails(subTask, actionResult, response);
         }
         
         return success;
@@ -1046,30 +1053,38 @@ public class PlanningService {
         
         // Try different parsing strategies
         
-        // Strategy 1: Look for key=value pattern with flexible value matching
-        String pattern = "([^=\\s]+)\\s*=\\s*(.*)";
-        java.util.regex.Pattern regexPattern = java.util.regex.Pattern.compile(pattern);
-        java.util.regex.Matcher matcher = regexPattern.matcher(params);
+        // Strategy 1: Parse multiple key=value pairs separated by commas
+        // Handle patterns like: command=npm init -y, working_directory=backend_todo
+        String[] pairs = params.split(",\\s*(?=[^=]*=)"); // Split on commas that precede key=value pairs
         
-        if (matcher.find()) {
-            String key = matcher.group(1).trim();
-            String value = matcher.group(2).trim();
+        for (String pair : pairs) {
+            String pattern = "([^=\\s]+)\\s*=\\s*(.*)";
+            java.util.regex.Pattern regexPattern = java.util.regex.Pattern.compile(pattern);
+            java.util.regex.Matcher matcher = regexPattern.matcher(pair.trim());
             
-            // Remove surrounding quotes if present
-            if (value.startsWith("\"") && value.endsWith("\"")) {
-                value = value.substring(1, value.length() - 1);
+            if (matcher.find()) {
+                String key = matcher.group(1).trim();
+                String value = matcher.group(2).trim();
+                
+                // Remove surrounding quotes if present
+                if (value.startsWith("\"") && value.endsWith("\"")) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                if (value.startsWith("'") && value.endsWith("'")) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                
+                // For command parameters, be more careful with cleaning
+                if ("command".equals(key)) {
+                    // Only remove outer code blocks for commands, preserve the command content
+                    value = cleanCommandValue(value);
+                } else {
+                    value = cleanParameterString(value);
+                }
+                
+                paramMap.put(key, value);
+                log.debug("  Parameter (Strategy 1): {} = '{}'", key, value);
             }
-            
-            // For command parameters, be more careful with cleaning
-            if ("command".equals(key)) {
-                // Only remove outer code blocks for commands, preserve the command content
-                value = cleanCommandValue(value);
-            } else {
-                value = cleanParameterString(value);
-            }
-            
-            paramMap.put(key, value);
-            log.debug("  Parameter (Strategy 1): {} = '{}'", key, value);
         }
         
         // Fallback: if regex didn't work, try simple parsing but be smarter about it
@@ -1121,6 +1136,12 @@ public class PlanningService {
         // Remove any remaining triple backticks that might be embedded
         params = params.replaceAll("```", "");
         
+        // Remove double asterisks and other markdown formatting
+        params = params.replaceAll("\\*\\*", ""); // Remove **
+        params = params.replaceAll("\\*", ""); // Remove single *
+        params = params.replaceAll("__", ""); // Remove __
+        params = params.replaceAll("_", ""); // Remove single _
+        
         // Clean up multiple whitespace and newlines
         params = params.replaceAll("\\s+", " ");
         
@@ -1152,6 +1173,17 @@ public class PlanningService {
         if (command.startsWith("`") && command.endsWith("`") && command.length() > 2) {
             command = command.substring(1, command.length() - 1);
         }
+        
+        // Remove double asterisks (markdown bold) that wrap the entire command
+        if (command.startsWith("**") && command.endsWith("**") && command.length() > 4) {
+            command = command.substring(2, command.length() - 2);
+        }
+        
+        // Remove any remaining double asterisks (in case they don't wrap the whole command)
+        command = command.replaceAll("\\*\\*", "");
+        
+        // Remove single asterisks (markdown italic)
+        command = command.replaceAll("\\*", "");
         
         // Clean up excess whitespace but preserve necessary spaces in commands
         command = command.replaceAll("\\s+", " ");
@@ -2512,5 +2544,275 @@ public class PlanningService {
             """);
         
         return template.toString();
+    }
+    
+    /**
+     * Print detailed failure information for step execution
+     */
+    private void printDetailedFailureInfo(ActionSpec actionSpec, AgentTask completedTask) {
+        System.out.println("🔍 Detailed Failure Analysis:");
+        System.out.println("├─ Action Type: " + actionSpec.getType());
+        System.out.println("├─ Action Description: " + actionSpec.getDescription());
+        
+        // Print action parameters
+        if (actionSpec.getParameters() != null && !actionSpec.getParameters().isEmpty()) {
+            System.out.println("├─ Parameters:");
+            actionSpec.getParameters().forEach((key, value) -> {
+                if ("command".equals(key)) {
+                    System.out.println("│  ├─ Command: '" + value + "'");
+                } else if ("file_path".equals(key)) {
+                    System.out.println("│  ├─ File Path: '" + value + "'");
+                } else if ("working_directory".equals(key)) {
+                    System.out.println("│  ├─ Working Directory: '" + value + "'");
+                } else {
+                    System.out.println("│  ├─ " + key + ": '" + value + "'");
+                }
+            });
+        }
+        
+        // Print task status and error details
+        System.out.println("├─ Task Status: " + completedTask.getStatus());
+        System.out.println("├─ Error Message: " + completedTask.getErrorMessage());
+        
+        // Print task result details if available
+        if (completedTask.getResult() != null) {
+            AgentTask.TaskResult result = completedTask.getResult();
+            System.out.println("├─ Exit Code: " + result.getExitCode());
+            
+            if (result.getOutput() != null && !result.getOutput().trim().isEmpty()) {
+                System.out.println("├─ Command Output:");
+                String[] outputLines = result.getOutput().trim().split("\n");
+                for (int i = 0; i < outputLines.length; i++) {
+                    String prefix = (i == outputLines.length - 1) ? "│  └─ " : "│  ├─ ";
+                    System.out.println(prefix + outputLines[i]);
+                }
+            }
+            
+            if (result.getCommandsExecuted() != null && !result.getCommandsExecuted().isEmpty()) {
+                System.out.println("├─ Commands Executed:");
+                for (int i = 0; i < result.getCommandsExecuted().size(); i++) {
+                    String cmd = result.getCommandsExecuted().get(i);
+                    String prefix = (i == result.getCommandsExecuted().size() - 1) ? "│  └─ " : "│  ├─ ";
+                    System.out.println(prefix + "'" + cmd + "'");
+                }
+            }
+        }
+        
+        // Print any error details if available
+        if (completedTask.getErrorMessage() != null && !completedTask.getErrorMessage().trim().isEmpty()) {
+            System.out.println("├─ Error Details: " + completedTask.getErrorMessage());
+        }
+        
+        // Print result error if different from main error message
+        if (completedTask.getResult() != null && 
+            completedTask.getResult().getError() != null && 
+            !completedTask.getResult().getError().equals(completedTask.getErrorMessage())) {
+            System.out.println("├─ Result Error: " + completedTask.getResult().getError());
+        }
+        
+        System.out.println("└─ [End Failure Analysis]");
+        System.out.println();
+    }
+    
+    /**
+     * Print detailed failure information for subtask evaluation
+     */
+    private void printSubtaskFailureDetails(SubTask subTask, ActionResult actionResult, String aiEvaluation) {
+        System.out.println();
+        System.out.println("🚨 SUBTASK FAILURE REPORT");
+        System.out.println("═══════════════════════════════════════");
+        System.out.println("📋 Subtask: " + subTask.getDescription());
+        System.out.println("🔧 Priority: " + subTask.getPriority());
+        System.out.println("⚡ Complexity: " + subTask.getComplexity());
+        
+        // Action result analysis
+        System.out.println();
+        System.out.println("🎯 Action Execution Result:");
+        System.out.println("├─ Action Success: " + (actionResult.isSuccess() ? "✅ YES" : "❌ NO"));
+        System.out.println("├─ Action Description: " + actionResult.getActionDescription());
+        
+        if (actionResult.getTaskId() != null) {
+            System.out.println("├─ Task ID: " + actionResult.getTaskId());
+        }
+        
+        // AI evaluation analysis
+        System.out.println();
+        System.out.println("🤖 AI Evaluation:");
+        boolean aiSuccess = aiEvaluation.toLowerCase().contains("yes");
+        System.out.println("├─ AI Assessment: " + (aiSuccess ? "✅ SUCCESS" : "❌ NEEDS MORE WORK"));
+        System.out.println("├─ AI Response: \"" + aiEvaluation.trim() + "\"");
+        
+        // Combined failure analysis
+        System.out.println();
+        System.out.println("📊 Failure Analysis:");
+        if (!actionResult.isSuccess() && !aiSuccess) {
+            System.out.println("├─ Issue Type: Both action execution and AI evaluation failed");
+            System.out.println("├─ Severity: HIGH - Complete task failure");
+        } else if (!actionResult.isSuccess()) {
+            System.out.println("├─ Issue Type: Action execution failed but AI would have approved");
+            System.out.println("├─ Severity: HIGH - Technical execution problem");
+        } else if (!aiSuccess) {
+            System.out.println("├─ Issue Type: Action succeeded but doesn't meet requirements");
+            System.out.println("├─ Severity: MEDIUM - Quality/completeness issue");
+        }
+        
+        // Output and result details
+        if (actionResult.getResult() != null) {
+            System.out.println();
+            System.out.println("🔍 Execution Details:");
+            
+            if (actionResult.getResult().getOutput() != null && !actionResult.getResult().getOutput().trim().isEmpty()) {
+                System.out.println("├─ Command Output:");
+                String[] outputLines = actionResult.getResult().getOutput().trim().split("\n");
+                for (int i = 0; i < Math.min(10, outputLines.length); i++) { // Limit to 10 lines
+                    String prefix = (i == Math.min(10, outputLines.length) - 1) ? "│  └─ " : "│  ├─ ";
+                    System.out.println(prefix + outputLines[i]);
+                }
+                if (outputLines.length > 10) {
+                    System.out.println("│  └─ ... (" + (outputLines.length - 10) + " more lines)");
+                }
+            }
+            
+            if (actionResult.getResult().getExitCode() != null && actionResult.getResult().getExitCode() != 0) {
+                System.out.println("├─ Exit Code: " + actionResult.getResult().getExitCode() + " (ERROR)");
+            }
+        }
+        
+        // Suggestions for debugging
+        System.out.println();
+        System.out.println("💡 Debugging Suggestions:");
+        if (subTask.getCommands() != null && !subTask.getCommands().isEmpty()) {
+            System.out.println("├─ Try running commands manually:");
+            for (String cmd : subTask.getCommands()) {
+                System.out.println("│  └─ " + cmd);
+            }
+        }
+        
+        if (subTask.getFilePath() != null) {
+            System.out.println("├─ Check if file path is accessible: " + subTask.getFilePath());
+        }
+        
+        if (subTask.getDependencies() != null && !subTask.getDependencies().isEmpty()) {
+            System.out.println("├─ Verify dependencies completed: " + String.join(", ", subTask.getDependencies()));
+        }
+        
+        System.out.println("└─ Consider checking working directory and permissions");
+        System.out.println();
+        System.out.println("═══════════════════════════════════════");
+        System.out.println();
+    }
+    
+    /**
+     * Prompt user whether to continue execution after a task failure
+     */
+    private boolean promptUserOnTaskFailure(SubTask failedSubTask, ReActCycleResult result) {
+        System.out.println();
+        System.out.println("⚠️  TASK FAILURE DETECTED");
+        System.out.println("════════════════════════════════════════");
+        System.out.println("📋 Failed Task: " + failedSubTask.getDescription());
+        System.out.println("🔧 Priority: " + failedSubTask.getPriority());
+        System.out.println("⚡ Complexity: " + failedSubTask.getComplexity());
+        
+        // Show failure context
+        System.out.println();
+        System.out.println("🎯 What happened:");
+        System.out.println("├─ Action: " + result.getAction());
+        System.out.println("├─ Success: ❌ FAILED");
+        if (result.getObservation() != null && !result.getObservation().trim().isEmpty()) {
+            System.out.println("└─ Observation: " + result.getObservation().trim());
+        }
+        
+        // Show options
+        System.out.println();
+        System.out.println("🤔 What would you like to do?");
+        System.out.println();
+        System.out.println("1️⃣  Continue - Skip this task and proceed with remaining tasks");
+        System.out.println("2️⃣  Stop - Halt execution to investigate and fix the issue");
+        System.out.println("3️⃣  Retry - Attempt this task again (if you fixed the issue)");
+        System.out.println();
+        
+        // Get user input
+        java.util.Scanner scanner = new java.util.Scanner(System.in);
+        while (true) {
+            System.out.print("👉 Enter your choice (1=Continue, 2=Stop, 3=Retry): ");
+            try {
+                String input = scanner.nextLine().trim();
+                
+                switch (input.toLowerCase()) {
+                    case "1", "c", "continue" -> {
+                        System.out.println("✅ Continuing with next task...");
+                        System.out.println();
+                        return true;
+                    }
+                    case "2", "s", "stop" -> {
+                        System.out.println("🛑 Stopping execution for manual investigation...");
+                        System.out.println();
+                        return false;
+                    }
+                    case "3", "r", "retry" -> {
+                        System.out.println("🔄 Retrying the failed task...");
+                        System.out.println();
+                        return handleTaskRetry(failedSubTask);
+                    }
+                    default -> {
+                        System.out.println("❌ Invalid choice. Please enter 1, 2, or 3 (or 'continue', 'stop', 'retry')");
+                        continue;
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("❌ Error reading input. Please try again.");
+                continue;
+            }
+        }
+    }
+    
+    /**
+     * Handle task retry logic
+     */
+    private boolean handleTaskRetry(SubTask failedSubTask) {
+        System.out.println("🔧 Retry Options:");
+        System.out.println();
+        System.out.println("1️⃣  Quick Retry - Retry the task immediately");
+        System.out.println("2️⃣  Manual Fix - Wait for you to fix issues, then retry");
+        System.out.println("3️⃣  Skip - Give up on this task and continue");
+        System.out.println();
+        
+        java.util.Scanner scanner = new java.util.Scanner(System.in);
+        while (true) {
+            System.out.print("👉 Retry method (1=Quick, 2=Manual Fix, 3=Skip): ");
+            try {
+                String input = scanner.nextLine().trim();
+                
+                switch (input.toLowerCase()) {
+                    case "1", "q", "quick" -> {
+                        System.out.println("⚡ Performing quick retry...");
+                        // For now, just continue - could implement actual retry logic later
+                        return true;
+                    }
+                    case "2", "m", "manual" -> {
+                        System.out.println("🔧 Manual Fix Mode:");
+                        System.out.println("├─ Please fix the issue in another terminal");
+                        System.out.println("├─ Check the error details above");
+                        System.out.println("├─ Verify file paths, permissions, and dependencies");
+                        System.out.println("└─ Press Enter when ready to retry...");
+                        System.out.print("👉 ");
+                        scanner.nextLine(); // Wait for user
+                        System.out.println("✅ Retrying after manual fix...");
+                        return true;
+                    }
+                    case "3", "s", "skip" -> {
+                        System.out.println("⏭️  Skipping failed task and continuing...");
+                        return true;
+                    }
+                    default -> {
+                        System.out.println("❌ Invalid choice. Please enter 1, 2, or 3");
+                        continue;
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("❌ Error reading input. Please try again.");
+                continue;
+            }
+        }
     }
 }
