@@ -1,6 +1,6 @@
 # Claude Code CLI - Java Version (Misoto)
 <div align="center">
-  <img src="logo.jpg" alt="Misoto CLI Logo" width="200" height="200">
+  <img src="logo.jpg" alt="Misoto CLI Logo" width="300" height="300">
   <h3>AI-Powered Infrastructure Agent System</h3>
   <p><em>A sophisticated command-line interface for autonomous infrastructure management</em></p>
 </div>
